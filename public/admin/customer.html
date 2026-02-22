@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Customer Analytics | ZeroNetBank</title>
+  <style>
+    :root {
+      --bg-0: #0b1221;
+      --bg-1: #12213a;
+      --panel: rgba(17, 33, 58, 0.88);
+      --line: rgba(139, 172, 227, 0.26);
+      --text: #edf5ff;
+      --muted: #9bb3d6;
+      --income: #18c07c;
+      --spend: #ff6b88;
+      --blue: #4cb9ff;
+      --violet: #8174ff;
+      --amber: #ffc65c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--text);
+      font-family: "Manrope", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 10% -15%, rgba(76,185,255,.25), transparent 38%),
+        radial-gradient(circle at 92% 0%, rgba(129,116,255,.22), transparent 40%),
+        linear-gradient(160deg, var(--bg-0), #11213b 45%, #14284a 100%);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 1220px; margin: 0 auto; padding: 20px; }
+    .glass { border: 1px solid var(--line); border-radius: 18px; background: var(--panel); backdrop-filter: blur(8px); }
+    .topbar { padding: 16px; margin-bottom: 14px; display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+    h1 { margin: 0; font-size: 32px; }
+    .muted { color: var(--muted); font-size: 13px; }
+
+    .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    input, button, select {
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(19, 42, 73, 0.9);
+      color: var(--text);
+      padding: 0 12px;
+    }
+    button {
+      border: 0;
+      cursor: pointer;
+      font-weight: 700;
+      background: linear-gradient(140deg, #3f87ff, #746cff);
+      box-shadow: 0 10px 22px rgba(65, 118, 255, 0.24);
+    }
+    .secondary { background: #2a4166; box-shadow: none; }
+
+    .row { display: grid; gap: 12px; }
+    .row-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .row-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .card { padding: 14px; }
+    .metric-title { color: var(--muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+    .metric-value { margin-top: 8px; font-size: 30px; font-weight: 800; }
+
+    h2 { margin: 0 0 8px 0; font-size: 26px; }
+    .chart-box {
+      min-height: 250px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(20,46,81,.64), rgba(12,28,52,.88));
+      padding: 14px;
+    }
+
+    .overview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: center; }
+    .big-ratio {
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      position: relative;
+      margin: 0 auto;
+      background: conic-gradient(var(--income) 0turn 0.5turn, var(--spend) 0.5turn 1turn);
+    }
+    .big-ratio::after {
+      content: "";
+      position: absolute;
+      inset: 32px;
+      border-radius: 50%;
+      background: #132848;
+      border: 1px solid var(--line);
+    }
+    .ratio-center {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      font-size: 22px;
+      font-weight: 800;
+      z-index: 2;
+    }
+
+    .kv { display: grid; gap: 10px; }
+    .kv-row { display: flex; justify-content: space-between; font-size: 14px; }
+
+    .progress-track { height: 12px; border-radius: 999px; background: rgba(44,67,106,.7); overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 999px; }
+
+    .chip {
+      display: inline-flex;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: rgba(9,23,43,.7);
+    }
+    .chip.in { color: #7cf0bc; border-color: rgba(24,192,124,.45); background: rgba(10,78,52,.4); }
+    .chip.out { color: #ffadc0; border-color: rgba(255,107,136,.45); background: rgba(95,21,42,.42); }
+
+    .type-list { display: grid; gap: 8px; margin-top: 6px; }
+    .type-item { display: grid; grid-template-columns: 120px 1fr 44px; gap: 8px; align-items: center; font-size: 13px; }
+    .bar-track { height: 10px; border-radius: 999px; background: rgba(44,67,106,.7); overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 999px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 9px 8px; text-align: left; }
+    th { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-size: 11px; }
+    tr:hover td { background: rgba(24,48,86,.42); }
+
+    @media (max-width: 980px) {
+      .row-4, .row-2, .overview-grid { grid-template-columns: 1fr; }
+      h1 { font-size: 27px; }
+      .topbar { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar glass">
+    <div>
+      <h1 id="title">Customer Analytics</h1>
+      <div class="muted" id="subTitle">Load customer data by mobile number.</div>
+    </div>
+    <div class="controls">
+      <input id="phoneInput" placeholder="Customer mobile" />
+      <select id="daysInput">
+        <option value="14">14 days</option>
+        <option value="30" selected>30 days</option>
+        <option value="60">60 days</option>
+      </select>
+      <button id="loadBtn">Load Analytics</button>
+      <button class="secondary" id="backBtn">Back Admin</button>
+    </div>
+  </div>
+
+  <div class="row row-4">
+    <div class="glass card"><div class="metric-title">Current Balance</div><div class="metric-value" id="mBalance">0.00</div></div>
+    <div class="glass card"><div class="metric-title">Total Income</div><div class="metric-value" id="mIn">0.00</div></div>
+    <div class="glass card"><div class="metric-title">Total Spend</div><div class="metric-value" id="mOut">0.00</div></div>
+    <div class="glass card"><div class="metric-title">Net Savings</div><div class="metric-value" id="mNet">0.00</div></div>
+  </div>
+
+  <div class="row row-2" style="margin-top:12px;">
+    <div class="glass card">
+      <h2>Income vs Spend Overview</h2>
+      <div class="muted">Overall customer cashflow analysis (not daily timeline)</div>
+      <div class="chart-box">
+        <div class="overview-grid">
+          <div>
+            <div class="big-ratio" id="ratioRing"><div class="ratio-center" id="ratioCenter">0%</div></div>
+          </div>
+          <div class="kv">
+            <div class="kv-row"><span class="muted">Income Share</span><strong id="incomePct">0%</strong></div>
+            <div class="progress-track"><div id="incomeBar" class="progress-fill" style="width:0%;background:var(--income);"></div></div>
+            <div class="kv-row"><span class="muted">Spend Share</span><strong id="spendPct">0%</strong></div>
+            <div class="progress-track"><div id="spendBar" class="progress-fill" style="width:0%;background:var(--spend);"></div></div>
+            <div class="kv-row"><span class="muted">Savings Rate</span><strong id="savingRate">0%</strong></div>
+            <div class="kv-row"><span class="muted">Avg Tx Value</span><strong id="avgTx">0.00</strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass card">
+      <h2>Transaction Mix</h2>
+      <div class="muted">Distribution by transaction type</div>
+      <div class="chart-box">
+        <div id="typeList" class="type-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="glass card" style="margin-top:12px;">
+    <div class="controls" style="justify-content:space-between;width:100%;">
+      <h2 style="margin:0;">Recent Transactions</h2>
+      <div class="muted" id="statusLine">No customer loaded</div>
+    </div>
+    <table>
+      <thead><tr><th>ID</th><th>Type</th><th>Direction</th><th>Counterparty</th><th>Amount</th><th>Status</th><th>Time</th></tr></thead>
+      <tbody id="txRows"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const API = '/api/admin';
+  const fmt = (n) => Number(n || 0).toFixed(2);
+  const time = (v) => {
+    if (!v) return '-';
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? '-' : d.toLocaleString();
+  };
+
+  async function getJson(url) {
+    const r = await fetch(url);
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    return data;
+  }
+
+  function renderOverview(summary) {
+    const income = Number(summary.incomingTotal || 0);
+    const spend = Number(summary.outgoingTotal || 0);
+    const total = Math.max(1, income + spend);
+    const incomePct = Math.round((income / total) * 100);
+    const spendPct = 100 - incomePct;
+    const savingsRate = income > 0 ? Math.round(((income - spend) / income) * 100) : 0;
+    const avgTx = (Number(summary.txCount || 0) > 0) ? (income + spend) / Number(summary.txCount) : 0;
+
+    document.getElementById('incomePct').textContent = `${incomePct}%`;
+    document.getElementById('spendPct').textContent = `${spendPct}%`;
+    document.getElementById('savingRate').textContent = `${savingsRate}%`;
+    document.getElementById('avgTx').textContent = fmt(avgTx);
+    document.getElementById('incomeBar').style.width = `${incomePct}%`;
+    document.getElementById('spendBar').style.width = `${spendPct}%`;
+    document.getElementById('ratioCenter').textContent = `${incomePct}%`;
+    document.getElementById('ratioRing').style.background = `conic-gradient(var(--income) 0turn ${incomePct / 100}turn, var(--spend) ${incomePct / 100}turn 1turn)`;
+  }
+
+  function renderTypeList(rows) {
+    const box = document.getElementById('typeList');
+    if (!rows.length) {
+      box.innerHTML = '<div class="muted">No type breakdown available</div>';
+      return;
+    }
+    const max = Math.max(...rows.map((r) => Number(r.count || 0)), 1);
+    const colors = ['#4cb9ff', '#8174ff', '#18c07c', '#ffc65c', '#ff6b88'];
+    box.innerHTML = rows.map((r, idx) => {
+      const width = Math.max(4, Math.round((Number(r.count || 0) / max) * 100));
+      return `<div class="type-item">
+        <div>${r.type}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${width}%;background:${colors[idx % colors.length]}"></div></div>
+        <div>${r.count}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderTransactions(phone, txs) {
+    const body = document.getElementById('txRows');
+    if (!txs.length) {
+      body.innerHTML = '<tr><td colspan="7" class="muted">No recent transactions in selected period</td></tr>';
+      return;
+    }
+    body.innerHTML = txs.map((tx) => {
+      const incoming = tx.to === phone;
+      const counterparty = incoming ? tx.from : tx.to;
+      return `<tr>
+        <td title="${tx.id}">${(tx.id || '').slice(0, 16)}...</td>
+        <td>${tx.type || '-'}</td>
+        <td>${incoming ? '<span class="chip in">IN</span>' : '<span class="chip out">OUT</span>'}</td>
+        <td>${counterparty}</td>
+        <td>${fmt(tx.amount)}</td>
+        <td>${tx.status || '-'}</td>
+        <td>${time(Number(tx.timestamp))}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function applySummary(data) {
+    const u = data.user;
+    const s = data.summary;
+    document.getElementById('title').textContent = `Customer Analytics - ${u.phone}`;
+    document.getElementById('subTitle').textContent = `${u.displayName || 'Unnamed user'} | Trust ${u.trustScore} | Status ${u.status}`;
+    document.getElementById('mBalance').textContent = fmt(u.balance);
+    document.getElementById('mIn').textContent = fmt(s.incomingTotal);
+    document.getElementById('mOut').textContent = fmt(s.outgoingTotal);
+    document.getElementById('mNet').textContent = fmt(s.netFlow);
+    document.getElementById('statusLine').textContent = `${s.txCount} tx in last ${data.periodDays} days | Last seen ${time(u.lastSeenAt)}`;
+    renderOverview(s);
+    renderTypeList(data.byType || []);
+    renderTransactions(u.phone, data.recentTransactions || []);
+  }
+
+  async function loadAnalytics() {
+    const phone = document.getElementById('phoneInput').value.trim();
+    const days = document.getElementById('daysInput').value;
+    if (!phone) {
+      alert('Enter mobile number');
+      return;
+    }
+    try {
+      const data = await getJson(`${API}/users/${encodeURIComponent(phone)}/analytics?days=${encodeURIComponent(days)}`);
+      applySummary(data);
+    } catch (e) {
+      document.getElementById('statusLine').textContent = `Error: ${e.message}`;
+      document.getElementById('txRows').innerHTML = `<tr><td colspan="7" style="color:#ff9fb6;">Failed: ${e.message}</td></tr>`;
+    }
+  }
+
+  document.getElementById('loadBtn').addEventListener('click', loadAnalytics);
+  document.getElementById('backBtn').addEventListener('click', () => {
+    window.location.href = '/admin/';
+  });
+
+  const fromQuery = new URLSearchParams(location.search).get('phone');
+  if (fromQuery) {
+    document.getElementById('phoneInput').value = fromQuery;
+    loadAnalytics().catch(() => {});
+  }
+</script>
+</body>
+</html>

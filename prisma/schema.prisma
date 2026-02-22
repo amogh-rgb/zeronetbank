@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// USER (Wallet Identity)
+model User {
+  id          String   @id @default(uuid())
+  phone       String   @unique
+  displayName String?
+  publicKey   String   @unique // P-256 Hex
+  balance     Float    @default(0.0)
+  nonce       String   @default("") // Replay protection
+  trustScore  Int      @default(100)
+  isFrozen    Boolean  @default(false)
+  status      String   @default("OFFLINE")
+  lastSeenAt  DateTime?
+  lastSyncAt  DateTime?
+  deviceInfo  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  sentTransactions     Transaction[] @relation("Sender")
+  receivedTransactions Transaction[] @relation("Receiver")
+}
+
+// TRANSACTION (Ledger History)
+model Transaction {
+  id          String   @id // UUID or ULID provided by App provided ID
+  from        String   // Phone or Public Key
+  to          String   // Phone or Public Key
+  amount      Float
+  signature   String   // Sender's signature (Hex)
+  timestamp   BigInt   // Keep precision
+  status      String   // PENDING, CONFIRMED, FAILED
+  type        String   // TRANSFER, ADJUSTMENT
+  description String?
+  
+  sender      User?    @relation("Sender", fields: [from], references: [phone])
+  receiver    User?    @relation("Receiver", fields: [to], references: [phone]) // Optional if external/system
+
+  createdAt   DateTime @default(now())
+  
+  // Indexes for faster sync
+  @@index([from, timestamp])
+  @@index([to, timestamp])
+}
+
+model BankState {
+  id           Int      @id
+  vaultBalance Float    @default(1000000.0)
+  updatedAt    DateTime @updatedAt
+}
