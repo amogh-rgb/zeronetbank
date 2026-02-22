@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZeroNetBank Admin</title>
+  <style>
+    :root {
+      --bg-0: #081425;
+      --bg-1: #0f1f38;
+      --panel: rgba(14, 31, 58, 0.86);
+      --panel-2: rgba(16, 41, 74, 0.96);
+      --line: rgba(115, 154, 214, 0.24);
+      --text: #eaf3ff;
+      --muted: #9db6d8;
+      --ok: #19c37d;
+      --warn: #f7b731;
+      --err: #ff5c7c;
+      --cyan: #37d5ff;
+      --blue: #4f87ff;
+      --violet: #7f6bff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--text);
+      font-family: "Manrope", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 10% -10%, rgba(55, 213, 255, 0.22), transparent 36%),
+        radial-gradient(circle at 90% 0%, rgba(127, 107, 255, 0.2), transparent 40%),
+        linear-gradient(160deg, var(--bg-0), #0a1a31 46%, #0d2343 100%);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 1400px; margin: 0 auto; padding: 20px; }
+    .glass {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+      backdrop-filter: blur(6px);
+    }
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .title { font-size: 34px; font-weight: 800; letter-spacing: .01em; margin: 0; }
+    .subtitle { font-size: 13px; color: var(--muted); margin-top: 2px; }
+    .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .status-pill {
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      background: rgba(8, 20, 37, 0.65);
+    }
+    .status-pill.ok { color: #77f2bd; border-color: rgba(25,195,125,.45); background: rgba(6,65,43,.45); }
+    .status-pill.err { color: #ff99ae; border-color: rgba(255,92,124,.45); background: rgba(84,14,32,.45); }
+    .row { display: grid; gap: 12px; }
+    .row-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .row-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .row-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .card { padding: 14px; }
+    .metric-title { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .07em; }
+    .metric-value { font-size: 30px; font-weight: 800; margin-top: 8px; }
+    .metric-delta { margin-top: 6px; font-size: 12px; color: var(--muted); }
+
+    h2 { margin: 0 0 10px 0; font-size: 20px; }
+    .tagline { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+    .chart-box {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(21,45,80,0.65), rgba(11,27,50,0.8));
+      padding: 12px;
+      min-height: 250px;
+    }
+
+    canvas { width: 100%; height: 220px; }
+
+    .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+    .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+    .dot { width: 10px; height: 10px; border-radius: 999px; }
+
+    .donut-wrap { display: flex; align-items: center; gap: 18px; margin-top: 10px; }
+    .donut {
+      width: 160px;
+      height: 160px;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      position: relative;
+      background: conic-gradient(var(--ok) 0turn .5turn, #30486f .5turn 1turn);
+    }
+    .donut::after {
+      content: "";
+      position: absolute;
+      inset: 28px;
+      border-radius: 50%;
+      background: #0d2343;
+      border: 1px solid var(--line);
+    }
+    .donut-center {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 20px;
+      z-index: 2;
+    }
+
+    input, button {
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 0 12px;
+    }
+    button {
+      cursor: pointer;
+      border: 0;
+      font-weight: 700;
+      background: linear-gradient(140deg, #3f86ff, #6f74ff);
+      box-shadow: 0 8px 20px rgba(70, 121, 255, 0.25);
+    }
+    button.secondary { background: #2d4165; box-shadow: none; }
+    button.ok { background: linear-gradient(140deg, #12c778, #1faf6d); }
+    button.err { background: linear-gradient(140deg, #ff5f7f, #ff3d62); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 9px 8px; text-align: left; }
+    th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+    tr:hover td { background: rgba(25, 52, 91, 0.4); }
+
+    .status {
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      display: inline-block;
+      border: 1px solid;
+    }
+    .online { color: #76f1ba; background: rgba(20,84,61,.45); border-color: rgba(25,195,125,.4); }
+    .offline { color: #ff97ac; background: rgba(95,20,43,.45); border-color: rgba(255,92,124,.4); }
+
+    .hint { color: var(--muted); font-size: 12px; }
+    .good { color: #76f1ba; }
+    .bad { color: #ff9eb2; }
+
+    @media (max-width: 1100px) {
+      .row-4, .row-3, .row-2 { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 760px) {
+      .row-4, .row-3, .row-2 { grid-template-columns: 1fr; }
+      .title { font-size: 28px; }
+      .donut-wrap { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="toolbar glass">
+    <div>
+      <h1 class="title">ZeroNetBank Admin</h1>
+      <div id="lastUpdated" class="subtitle">Last updated: -</div>
+    </div>
+    <div class="controls">
+      <span id="apiStatus" class="status-pill">API status: checking...</span>
+      <label class="hint" for="autoRefresh">Auto-refresh</label>
+      <input id="autoRefresh" type="checkbox" checked />
+      <button class="secondary" id="refreshBtn">Refresh</button>
+    </div>
+  </div>
+
+  <div class="row row-4" id="metricsRow">
+    <div class="glass card">
+      <div class="metric-title">Users</div>
+      <div class="metric-value" id="mUsers">0</div>
+      <div class="metric-delta" id="mUsersDelta">Registered wallets</div>
+    </div>
+    <div class="glass card">
+      <div class="metric-title">Online Users</div>
+      <div class="metric-value" id="mOnline">0</div>
+      <div class="metric-delta" id="mOnlineDelta">Live in last 2 mins</div>
+    </div>
+    <div class="glass card">
+      <div class="metric-title">Total User Balance</div>
+      <div class="metric-value" id="mUserBal">0.00</div>
+      <div class="metric-delta">Across all wallets</div>
+    </div>
+    <div class="glass card">
+      <div class="metric-title">Bank Vault Balance</div>
+      <div class="metric-value" id="mVault">0.00</div>
+      <div class="metric-delta">Liquidity remaining</div>
+    </div>
+  </div>
+
+  <div class="row row-3" style="margin-top:12px;">
+    <div class="glass card">
+      <h2>Top Wallet Balances</h2>
+      <div class="tagline">Highest-value customer wallets right now</div>
+      <div class="chart-box">
+        <canvas id="topBalanceChart" width="400" height="220"></canvas>
+        <div class="legend">
+          <span class="legend-item"><span class="dot" style="background:#37d5ff"></span>Wallet Balance</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass card">
+      <h2>User Status Split</h2>
+      <div class="tagline">Realtime availability health</div>
+      <div class="chart-box">
+        <div class="donut-wrap">
+          <div class="donut" id="statusDonut">
+            <div class="donut-center" id="donutCenter">0%</div>
+          </div>
+          <div>
+            <div class="legend-item"><span class="dot" style="background:var(--ok)"></span>Online: <strong id="onlineCount">0</strong></div>
+            <div class="legend-item"><span class="dot" style="background:#30486f"></span>Offline: <strong id="offlineCount">0</strong></div>
+            <div class="hint" style="margin-top:10px;">Online ratio indicates active device pings.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass card">
+      <h2>Add / Remove Money</h2>
+      <div class="tagline">Deposit or withdraw from customer wallet</div>
+      <div class="row row-2">
+        <input id="moneyPhone" placeholder="Mobile number" />
+        <input id="moneyAmount" placeholder="Amount" type="number" min="1" step="0.01" />
+      </div>
+      <div class="controls" style="margin-top:10px;">
+        <button class="ok" id="addBtn">Add Money</button>
+        <button class="err" id="removeBtn">Remove Money</button>
+      </div>
+      <div id="opMsg" class="hint" style="margin-top:10px;"></div>
+    </div>
+  </div>
+
+  <div class="glass card" style="margin-top:12px;">
+    <h2>Transaction Type Distribution</h2>
+    <div class="tagline">Based on latest loaded transactions</div>
+    <div id="typeBars" class="chart-box"></div>
+  </div>
+
+  <div class="glass card" style="margin-top:12px;">
+    <div class="toolbar" style="padding:0; margin-bottom:8px;">
+      <h2 style="margin:0;">Users</h2>
+      <div class="controls">
+        <input id="search" placeholder="Search mobile or name" />
+      </div>
+    </div>
+    <table>
+      <thead>
+      <tr>
+        <th>Mobile</th><th>Name</th><th>Status</th><th>Balance</th><th>Trust</th><th>Last Seen</th><th>Last Sync</th><th>Actions</th>
+      </tr>
+      </thead>
+      <tbody id="usersRows"></tbody>
+    </table>
+  </div>
+
+  <div class="row row-2" style="margin-top:12px;">
+    <div class="glass card">
+      <h2>Live Activity</h2>
+      <table>
+        <thead><tr><th>Time</th><th>Type</th><th>From</th><th>To</th><th>Amount</th></tr></thead>
+        <tbody id="recentTx"></tbody>
+      </table>
+    </div>
+
+    <div class="glass card">
+      <div class="toolbar" style="padding:0; margin-bottom:8px;">
+        <h2 style="margin:0;">User Transactions</h2>
+        <div class="hint" id="txTitle">Select a user to inspect transactions</div>
+      </div>
+      <table>
+        <thead><tr><th>ID</th><th>Type</th><th>From</th><th>To</th><th>Amount</th><th>Status</th><th>Time</th></tr></thead>
+        <tbody id="userTxRows"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API = '/api/admin';
+  let selectedPhone = null;
+  let refreshTimer = null;
+  let lastOverview = null;
+
+  const fmt = (n) => Number(n || 0).toFixed(2);
+  const time = (v) => {
+    if (!v) return '-';
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? '-' : d.toLocaleString();
+  };
+
+  async function getJson(url) {
+    const r = await fetch(url);
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    return data;
+  }
+
+  async function postJson(url, body) {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    return data;
+  }
+
+  function setStatus(el, status) {
+    const isOn = status === 'ONLINE';
+    el.innerHTML = `<span class="status ${isOn ? 'online' : 'offline'}">${isOn ? 'ONLINE' : 'OFFLINE'}</span>`;
+  }
+
+  function setApiStatus(ok, message) {
+    const el = document.getElementById('apiStatus');
+    el.className = `status-pill ${ok ? 'ok' : 'err'}`;
+    el.textContent = ok ? 'API status: ONLINE' : `API status: ${message || 'ERROR'}`;
+  }
+
+  function drawTopBalancesChart(users) {
+    const canvas = document.getElementById('topBalanceChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    ctx.clearRect(0, 0, width, height);
+
+    const top = (users || [])
+      .slice()
+      .sort((a, b) => Number(b.balance || 0) - Number(a.balance || 0))
+      .slice(0, 6);
+
+    if (!top.length) {
+      ctx.fillStyle = '#9db6d8';
+      ctx.font = '13px Segoe UI';
+      ctx.fillText('No wallet data available', 12, 26);
+      return;
+    }
+
+    const maxValue = Math.max(...top.map((u) => Number(u.balance || 0)), 1);
+    const left = 120;
+    const right = 20;
+    const barArea = width - left - right;
+    const rowH = Math.floor((height - 24) / top.length);
+
+    top.forEach((u, idx) => {
+      const y = 12 + idx * rowH + 4;
+      const value = Number(u.balance || 0);
+      const w = Math.max(4, Math.round((value / maxValue) * barArea));
+      const grad = ctx.createLinearGradient(left, 0, left + w, 0);
+      grad.addColorStop(0, '#37d5ff');
+      grad.addColorStop(1, '#7f6bff');
+
+      ctx.fillStyle = '#9db6d8';
+      ctx.font = '12px Segoe UI';
+      ctx.fillText(String(u.phone).slice(0, 12), 8, y + 14);
+
+      ctx.fillStyle = 'rgba(40,65,105,.6)';
+      ctx.fillRect(left, y, barArea, 14);
+      ctx.fillStyle = grad;
+      ctx.fillRect(left, y, w, 14);
+
+      ctx.fillStyle = '#eaf3ff';
+      ctx.font = '11px Segoe UI';
+      ctx.fillText(fmt(value), left + Math.min(w + 6, barArea - 42), y + 12);
+    });
+  }
+
+  function drawTrendChart(canvasId, values) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    ctx.clearRect(0, 0, width, height);
+
+    if (!values.length) {
+      ctx.fillStyle = '#9db6d8';
+      ctx.font = '13px Segoe UI';
+      ctx.fillText('No transaction data', 12, 26);
+      return;
+    }
+
+    const pad = 28;
+    const max = Math.max(...values, 1);
+    const min = Math.min(...values, 0);
+    const range = Math.max(max - min, 1);
+
+    ctx.strokeStyle = 'rgba(157,182,216,.2)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 4; i++) {
+      const y = pad + (i * (height - pad * 2) / 3);
+      ctx.beginPath();
+      ctx.moveTo(pad, y);
+      ctx.lineTo(width - pad, y);
+      ctx.stroke();
+    }
+
+    const getX = (i) => pad + (i * (width - pad * 2) / Math.max(values.length - 1, 1));
+    const getY = (v) => height - pad - ((v - min) / range) * (height - pad * 2);
+
+    const grad = ctx.createLinearGradient(0, 0, width, 0);
+    grad.addColorStop(0, '#37d5ff');
+    grad.addColorStop(1, '#6f74ff');
+
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    values.forEach((v, i) => {
+      const x = getX(i);
+      const y = getY(v);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    ctx.fillStyle = '#37d5ff';
+    values.forEach((v, i) => {
+      const x = getX(i);
+      const y = getY(v);
+      ctx.beginPath();
+      ctx.arc(x, y, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  function renderTypeBars(rows) {
+    const container = document.getElementById('typeBars');
+    if (!rows.length) {
+      container.innerHTML = '<div class="hint">No transactions to classify</div>';
+      return;
+    }
+    const counts = new Map();
+    rows.forEach((tx) => {
+      const type = tx.type || 'UNKNOWN';
+      counts.set(type, (counts.get(type) || 0) + 1);
+    });
+    const max = Math.max(...counts.values(), 1);
+
+    container.innerHTML = Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([type, count], idx) => {
+        const percent = Math.round((count / max) * 100);
+        const colors = ['#37d5ff', '#7f6bff', '#19c37d', '#f7b731', '#ff5c7c'];
+        const c = colors[idx % colors.length];
+        return `
+          <div style="margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:#9db6d8; margin-bottom:4px;">
+              <span>${type}</span><span>${count}</span>
+            </div>
+            <div style="height:10px;background:rgba(40,65,105,.6);border-radius:999px;overflow:hidden;">
+              <div style="height:100%;width:${percent}%;background:${c};"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+  }
+
+  function renderStatusDonut(users, onlineUsers) {
+    const donut = document.getElementById('statusDonut');
+    const center = document.getElementById('donutCenter');
+    const online = Math.max(0, Number(onlineUsers || 0));
+    const total = Math.max(0, Number(users || 0));
+    const offline = Math.max(0, total - online);
+    const ratio = total > 0 ? online / total : 0;
+    donut.style.background = `conic-gradient(var(--ok) 0turn ${ratio}turn, #30486f ${ratio}turn 1turn)`;
+    center.textContent = `${Math.round(ratio * 100)}%`;
+    document.getElementById('onlineCount').textContent = online;
+    document.getElementById('offlineCount').textContent = offline;
+  }
+
+  async function loadOverview() {
+    const data = await getJson(`${API}/overview`);
+    lastOverview = data;
+    setApiStatus(true);
+
+    document.getElementById('mUsers').textContent = data.metrics.users;
+    document.getElementById('mOnline').textContent = data.metrics.onlineUsers;
+    document.getElementById('mUserBal').textContent = fmt(data.metrics.totalUserBalance);
+    document.getElementById('mVault').textContent = fmt(data.metrics.vaultBalance);
+    document.getElementById('lastUpdated').textContent = `Last updated: ${time(data.serverTime)}`;
+
+    const rows = data.recentTransactions || [];
+    const body = document.getElementById('recentTx');
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="5" class="hint">No transactions</td></tr>';
+    } else {
+      body.innerHTML = rows.map(tx => `<tr>
+        <td>${time(Number(tx.timestamp))}</td>
+        <td>${tx.type}</td>
+        <td>${tx.from}</td>
+        <td>${tx.to}</td>
+        <td>${fmt(tx.amount)}</td>
+      </tr>`).join('');
+    }
+
+    renderTypeBars(rows);
+    renderStatusDonut(data.metrics.users, data.metrics.onlineUsers);
+  }
+
+  async function loadUsers() {
+    const q = document.getElementById('search').value.trim();
+    const data = await getJson(`${API}/users${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+    const body = document.getElementById('usersRows');
+    const users = data.users || [];
+    if (!users.length) {
+      body.innerHTML = '<tr><td colspan="8" class="hint">No users found</td></tr>';
+      return;
+    }
+
+    body.innerHTML = users.map(u => `<tr>
+      <td>${u.phone}</td>
+      <td>${u.displayName || '-'}</td>
+      <td id="st-${u.phone}"></td>
+      <td>${fmt(u.balance)}</td>
+      <td>${u.trustScore}</td>
+      <td>${time(u.lastSeenAt)}</td>
+      <td>${time(u.lastSyncAt)}</td>
+      <td>
+        <button class="secondary" onclick="selectUser('${u.phone}')">Transactions</button>
+        <button class="ok" onclick="prefill('${u.phone}')">Add/Remove</button>
+        <button onclick="openCustomerView('${u.phone}')">Customer View</button>
+      </td>
+    </tr>`).join('');
+
+    users.forEach(u => setStatus(document.getElementById(`st-${u.phone}`), u.status));
+    drawTopBalancesChart(users);
+  }
+
+  async function loadUserTx(phone) {
+    const box = document.getElementById('userTxRows');
+    document.getElementById('txTitle').textContent = `Wallet: ${phone}`;
+    const data = await getJson(`${API}/users/${encodeURIComponent(phone)}/transactions?limit=120`);
+    const txs = data.transactions || [];
+    if (!txs.length) {
+      box.innerHTML = '<tr><td colspan="7" class="hint">No transactions</td></tr>';
+      return;
+    }
+    box.innerHTML = txs.map(tx => `<tr>
+      <td title="${tx.id}">${tx.id.slice(0, 16)}...</td>
+      <td>${tx.type}</td>
+      <td>${tx.from}</td>
+      <td>${tx.to}</td>
+      <td>${fmt(tx.amount)}</td>
+      <td>${tx.status}</td>
+      <td>${time(Number(tx.timestamp))}</td>
+    </tr>`).join('');
+  }
+
+  async function refreshAll() {
+    let hasError = false;
+    let lastError = '';
+    try {
+      await loadOverview();
+    } catch (e) {
+      hasError = true;
+      lastError = e.message || String(e);
+      setApiStatus(false, `ERROR (${lastError})`);
+    }
+
+    try {
+      await loadUsers();
+    } catch (e) {
+      hasError = true;
+      lastError = e.message || String(e);
+      document.getElementById('usersRows').innerHTML = `<tr><td colspan="8" class="bad">Failed to load users: ${lastError}</td></tr>`;
+    }
+
+    if (selectedPhone) {
+      try { await loadUserTx(selectedPhone); } catch (_) {}
+    }
+
+    if (hasError) {
+      const opMsg = document.getElementById('opMsg');
+      opMsg.className = 'bad';
+      opMsg.textContent = `Error: ${lastError}`;
+    }
+  }
+
+  window.selectUser = async (phone) => {
+    selectedPhone = phone;
+    await loadUserTx(phone);
+  };
+
+  window.prefill = (phone) => {
+    document.getElementById('moneyPhone').value = phone;
+    document.getElementById('moneyAmount').focus();
+  };
+
+  window.openCustomerView = (phone) => {
+    window.open(`/admin/customer.html?phone=${encodeURIComponent(phone)}`, '_blank');
+  };
+
+  async function runOperation(kind) {
+    const phone = document.getElementById('moneyPhone').value.trim();
+    const amount = Number(document.getElementById('moneyAmount').value);
+    const opMsg = document.getElementById('opMsg');
+
+    if (!phone || !Number.isFinite(amount) || amount <= 0) {
+      opMsg.className = 'bad';
+      opMsg.textContent = 'Enter valid mobile and amount';
+      return;
+    }
+
+    try {
+      const path = kind === 'add' ? 'add-money' : 'remove-money';
+      const result = await postJson(`${API}/${path}`, { phone, amount });
+      opMsg.className = 'good';
+      opMsg.textContent = `${kind === 'add' ? 'Added' : 'Removed'} ${fmt(amount)} for ${phone}. Wallet=${fmt(result.balance)}, Vault=${fmt(result.vaultBalance)}`;
+      await refreshAll();
+      if (selectedPhone === phone) await loadUserTx(phone);
+    } catch (e) {
+      opMsg.className = 'bad';
+      opMsg.textContent = e.message;
+    }
+  }
+
+  document.getElementById('refreshBtn').addEventListener('click', refreshAll);
+  document.getElementById('search').addEventListener('input', () => loadUsers().catch(() => {}));
+  document.getElementById('addBtn').addEventListener('click', () => runOperation('add'));
+  document.getElementById('removeBtn').addEventListener('click', () => runOperation('remove'));
+  document.getElementById('autoRefresh').addEventListener('change', (e) => {
+    if (e.target.checked) {
+      refreshTimer = setInterval(() => refreshAll().catch(() => {}), 3500);
+    } else if (refreshTimer) {
+      clearInterval(refreshTimer);
+      refreshTimer = null;
+    }
+  });
+
+  refreshAll().catch(() => {});
+  refreshTimer = setInterval(() => refreshAll().catch(() => {}), 3500);
+</script>
+</body>
+</html>
