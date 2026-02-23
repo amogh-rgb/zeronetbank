@@ -4,6 +4,9 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { json } from 'body-parser';
 import { createServer } from 'http';
+import path from 'path';
+import OTPRoutes from './routes/otp.routes';
+import AdminRoutes from './routes/admin.routes';
 
 // Load environment variables
 dotenv.config();
@@ -16,6 +19,9 @@ app.use(helmet());
 app.use(cors());
 app.use(json());
 
+// Static files
+app.use(express.static(path.join(__dirname, '../public')));
+
 // Health check
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -25,6 +31,12 @@ app.get('/health', (_req: Request, res: Response) => {
 app.get('/api', (_req: Request, res: Response) => {
   res.json({ message: 'ZeroNetBank API v2.0' });
 });
+
+// Admin routes
+app.use('/api/admin', AdminRoutes);
+
+// OTP routes
+app.use('/api/otp', OTPRoutes);
 
 // Error handler
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
