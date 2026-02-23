@@ -11,13 +11,9 @@ import AdminRoutes from './routes/admin.routes';
 import PublicRoutes from './routes/public.routes';
 import EmailRoutes from './routes/email.routes';
 import OTPRoutes from './routes/otp.routes';
-<<<<<<< HEAD
 import SMSRoutes from './routes/sms.routes';
 import RegistrationRoutes from './routes/registration.routes';
 import UserProfileRoutes from './routes/user-profile.routes';
-=======
-import RegistrationRoutes from './routes/registration.routes';
->>>>>>> 6b520136e9b5d97ad4e43bc8938a8a2b0033ef76
 import { setupWebSocket } from './routes/websocket.routes';
 import { adaptiveLimiter, syncLimiter, transactionLimiter } from './middleware/intelligentRateLimit.middleware';
 import { cacheMiddleware, userCacheMiddleware } from './middleware/cache.middleware';
@@ -90,13 +86,9 @@ app.use('/wallet', WalletRoutes);
 app.use('/api/admin', adminAuth, AdminRoutes); 
 app.use('/api/public', PublicRoutes); 
 app.use('/api/otp', OTPRoutes);
-<<<<<<< HEAD
 app.use('/api/sms', SMSRoutes);
 app.use('/api/registration', RegistrationRoutes);
 app.use('/api/profile', UserProfileRoutes);
-=======
-app.use('/api/registration', RegistrationRoutes);
->>>>>>> 6b520136e9b5d97ad4e43bc8938a8a2b0033ef76
 app.use('/email', EmailRoutes);
 
 // Compatibility routes (legacy app/backend clients)
