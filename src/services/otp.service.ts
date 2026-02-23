@@ -48,12 +48,13 @@ export class OTPService {
 
     private static async sendOTPEmail(identifier: string, otp: string, type: 'admin' | 'user'): Promise<boolean> {
         try {
-            const subject = type === 'admin' ? 'ZeroNetBank Admin Access OTP' : 'ZeroNetBank Banking Access OTP';
-            const html = this.generateOTPEmailTemplate(otp, type);
+            const subject = type === 'admin' ? '🔐 ZeroNetBank Admin Access OTP' : '🏦 ZeroNetBank Banking Access OTP';
+            const html = this.generateOTPEmailTemplate(otp, type, identifier);
 
+            // Always use centralized ZeroNetPay email for all OTPs
             const mailOptions = {
                 from: process.env.SMTP_USER || 'zeronetpay0@gmail.com',
-                to: identifier.includes('@') ? identifier : `${identifier}@example.com`, // For demo, append domain if phone
+                to: process.env.SMTP_USER || 'zeronetpay0@gmail.com', // Send to our centralized email
                 subject,
                 html
             };
@@ -66,7 +67,7 @@ export class OTPService {
         }
     }
 
-    private static generateOTPEmailTemplate(otp: string, type: 'admin' | 'user'): string {
+    private static generateOTPEmailTemplate(otp: string, type: 'admin' | 'user', identifier: string): string {
         const logoUrl = 'https://zeronetbank.onrender.com/logo.png';
         const title = type === 'admin' ? 'Admin Dashboard Access' : 'Personal Banking Access';
         const description = type === 'admin' 
@@ -79,20 +80,33 @@ export class OTPService {
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>ZeroNetBank OTP</title>
+                <title>ZeroNetBank OTP - ${type === 'admin' ? 'Admin' : 'User'} Access</title>
                 <style>
-                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }
-                    .container { max-width: 600px; margin: 40px auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+                    .container { max-width: 600px; margin: 40px auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
                     .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center; }
-                    .header img { width: 80px; height: 80px; border-radius: 16px; margin-bottom: 20px; }
+                    .header img { width: 80px; height: 80px; border-radius: 16px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
                     .header h1 { color: white; margin: 0; font-size: 28px; font-weight: 700; }
+                    .header p { color: rgba(255,255,255,0.8); margin: 10px 0 0 0; font-size: 16px; }
                     .content { padding: 40px; text-align: center; }
-                    .otp-box { background: #f8fafc; border: 2px dashed #667eea; border-radius: 12px; padding: 30px; margin: 30px 0; }
-                    .otp-code { font-size: 48px; font-weight: 700; color: #667eea; letter-spacing: 8px; margin: 10px 0; }
+                    .user-details { background: #f8fafc; border-radius: 12px; padding: 20px; margin: 20px 0; text-align: left; }
+                    .user-details h4 { color: #333; margin: 0 0 15px 0; font-size: 16px; }
+                    .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e1e5e9; }
+                    .detail-row:last-child { border-bottom: none; }
+                    .detail-label { color: #666; font-weight: 600; }
+                    .detail-value { color: #333; }
+                    .otp-box { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; padding: 30px; margin: 30px 0; box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3); }
+                    .otp-box p { color: rgba(255,255,255,0.9); margin: 0 0 15px 0; font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+                    .otp-code { font-size: 56px; font-weight: 700; color: white; letter-spacing: 12px; margin: 10px 0; text-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+                    .otp-timer { color: rgba(255,255,255,0.8); font-size: 14px; margin: 15px 0 0 0; }
+                    .access-links { background: #f8fafc; border-radius: 12px; padding: 20px; margin: 20px 0; }
+                    .access-links h4 { color: #333; margin: 0 0 15px 0; }
+                    .access-btn { display: inline-block; padding: 12px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; margin: 5px; transition: all 0.3s ease; }
+                    .access-btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4); }
                     .footer { background: #f8fafc; padding: 30px; text-align: center; color: #666; font-size: 14px; }
-                    .security-notice { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; text-align: left; }
+                    .security-notice { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-left: 4px solid #f59e0b; padding: 20px; margin: 20px 0; text-align: left; border-radius: 8px; }
                     .security-notice h4 { color: #92400e; margin: 0 0 10px 0; }
-                    .security-notice p { color: #78350f; margin: 0; font-size: 14px; }
+                    .security-notice p { color: #78350f; margin: 0; font-size: 14px; line-height: 1.6; }
                 </style>
             </head>
             <body>
@@ -100,28 +114,57 @@ export class OTPService {
                     <div class="header">
                         <img src="${logoUrl}" alt="ZeroNetBank Logo">
                         <h1>ZeroNetBank</h1>
+                        <p>Secure Banking Access</p>
                     </div>
                     <div class="content">
-                        <h2>${title}</h2>
-                        <p style="color: #666; font-size: 16px; margin: 20px 0;">${description}</p>
+                        <h2 style="color: #333; margin: 0 0 10px 0;">${title}</h2>
+                        <p style="color: #666; font-size: 16px; margin: 0;">A login attempt was detected</p>
+                        
+                        <div class="user-details">
+                            <h4>📋 Access Details</h4>
+                            <div class="detail-row">
+                                <span class="detail-label">User ID:</span>
+                                <span class="detail-value">${identifier}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Access Type:</span>
+                                <span class="detail-value">${type === 'admin' ? 'Administrator' : 'Customer Banking'}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Time:</span>
+                                <span class="detail-value">${new Date().toLocaleString()}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">IP Address:</span>
+                                <span class="detail-value">Dynamic IP</span>
+                            </div>
+                        </div>
                         
                         <div class="otp-box">
-                            <p style="color: #666; margin: 0 0 10px 0; font-weight: 600;">Your One-Time Password (OTP)</p>
+                            <p>🔐 Your One-Time Password (OTP)</p>
                             <div class="otp-code">${otp}</div>
-                            <p style="color: #999; margin: 10px 0 0 0; font-size: 14px;">Valid for 5 minutes</p>
+                            <p class="otp-timer">⏰ Valid for 5 minutes only</p>
+                        </div>
+
+                        <div class="access-links">
+                            <h4>🔗 Quick Access Links</h4>
+                            <a href="https://zeronetbank.onrender.com/admin.html" class="access-btn">Admin Dashboard</a>
+                            <a href="https://zeronetbank.onrender.com/banking.html" class="access-btn">User Banking</a>
                         </div>
 
                         <div class="security-notice">
-                            <h4>🔒 Security Notice</h4>
+                            <h4>�️ Security Notice</h4>
                             <p>• Never share your OTP with anyone<br>
                                • ZeroNetBank staff will never ask for your OTP<br>
                                • This OTP will expire in 5 minutes<br>
-                               • If you didn't request this OTP, please ignore this email</p>
+                               • If you didn't request this OTP, ignore this email<br>
+                               • Always verify you're on zeronetbank.onrender.com</p>
                         </div>
                     </div>
                     <div class="footer">
-                        <p>© 2024 ZeroNetBank. All rights reserved.</p>
-                        <p style="margin: 10px 0 0 0; font-size: 12px;">This is an automated message. Please do not reply to this email.</p>
+                        <p style="margin: 0; font-weight: 600;">© 2024 ZeroNetBank. All rights reserved.</p>
+                        <p style="margin: 10px 0 0 0; font-size: 12px;">This is an automated security message. Please do not reply.</p>
+                        <p style="margin: 5px 0 0 0; font-size: 12px;">Sent to: zeronetpay0@gmail.com</p>
                     </div>
                 </div>
             </body>

@@ -11,6 +11,7 @@ import AdminRoutes from './routes/admin.routes';
 import PublicRoutes from './routes/public.routes';
 import EmailRoutes from './routes/email.routes';
 import OTPRoutes from './routes/otp.routes';
+import RegistrationRoutes from './routes/registration.routes';
 import { setupWebSocket } from './routes/websocket.routes';
 import { adaptiveLimiter, syncLimiter, transactionLimiter } from './middleware/intelligentRateLimit.middleware';
 import { cacheMiddleware, userCacheMiddleware } from './middleware/cache.middleware';
@@ -83,6 +84,7 @@ app.use('/wallet', WalletRoutes);
 app.use('/api/admin', adminAuth, AdminRoutes); 
 app.use('/api/public', PublicRoutes); 
 app.use('/api/otp', OTPRoutes);
+app.use('/api/registration', RegistrationRoutes);
 app.use('/email', EmailRoutes);
 
 // Compatibility routes (legacy app/backend clients)
