@@ -40,9 +40,9 @@ class IntelligentRateLimiter {
     return rateLimit({
       windowMs: 5 * 60 * 1000, // 5 minutes for sync
       max: 50, // Higher limit for sync operations
-      keyGenerator: (req: Request) => `sync:${req.ip}:${this.extractUserId(req)}`,
+      keyGenerator: (req: Request) => `sync:${this.getClientIP(req)}:${this.extractUserId(req)}`,
       handler: (req: Request, res: Response) => {
-        logger.warn(`Sync rate limit exceeded for ${req.ip}`);
+        logger.warn(`Sync rate limit exceeded for ${this.getClientIP(req)}`);
         res.status(429).json({
           status: 429,
           error: 'Sync rate limit exceeded. Please wait a moment.',
@@ -93,7 +93,8 @@ class IntelligentRateLimiter {
   private generateKey(req: Request): string {
     const userId = this.extractUserId(req);
     const endpoint = req.path;
-    return `${userId}:${endpoint}`;
+    const clientIP = this.getClientIP(req);
+    return `${clientIP}:${userId}:${endpoint}`;
   }
 
   private shouldSkip(req: Request): boolean {
@@ -112,14 +113,14 @@ class IntelligentRateLimiter {
     const userId = req.headers['x-user-id'] as string || 
                    req.body?.phone || 
                    req.query?.phone || 
-                   req.ip;
+                   this.getClientIP(req);
     
     return userId.toString();
   }
 
   private handleRateLimit(req: Request, res: Response) {
     const userId = this.extractUserId(req);
-    logger.warn(`Rate limit exceeded for user ${userId} from ${req.ip} on ${req.path}`);
+    logger.warn(`Rate limit exceeded for user ${userId} from ${this.getClientIP(req)} on ${req.path}`);
     
     res.status(429).json({
       status: 429,
@@ -163,6 +164,15 @@ class IntelligentRateLimiter {
       lastRequest: Date.now(),
       tier: userData.tier
     });
+  }
+
+  // Helper method to get client IP safely (IPv6 compatible)
+  private getClientIP(req: Request): string {
+    const forwarded = req.headers['x-forwarded-for'] as string;
+    if (forwarded) {
+      return forwarded.split(',')[0].trim();
+    }
+    return req.ip || req.socket.remoteAddress || 'unknown';
   }
 }
 

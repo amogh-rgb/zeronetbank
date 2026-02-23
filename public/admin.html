@@ -115,7 +115,24 @@
     </div>
 
     <script>
-        const API = 'http://localhost:3000';
+        const API = window.location.origin;
+        const ADMIN_TOKEN = 'admin-token-123';
+
+        async function adminRequest(url, method = 'GET', data = null) {
+            const options = {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': ADMIN_TOKEN
+                }
+            };
+            
+            if (data) {
+                options.body = JSON.stringify(data);
+            }
+            
+            return fetch(url, options);
+        }
 
         async function creditUser() {
             const phone = document.getElementById('phone').value;
@@ -128,11 +145,7 @@
             }
 
             try {
-                const res = await fetch(`${API}/api/admin/credit`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phone, amount })
-                });
+                const res = await adminRequest(`${API}/api/admin/credit`, 'POST', { phone, amount });
                 const data = await res.json();
                 if (data.success) {
                     msg.innerText = `✅ Added ${amount} to ${phone}`;
@@ -148,7 +161,7 @@
         async function loadWallets() {
             const tbody = document.getElementById('walletList');
             try {
-                const res = await fetch(`${API}/api/admin/wallets`);
+                const res = await adminRequest(`${API}/api/admin/wallets`);
                 const wallets = await res.json();
 
                 tbody.innerHTML = wallets.map(w => `

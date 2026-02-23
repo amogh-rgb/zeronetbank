@@ -71,6 +71,7 @@ app.use('/wallet/balance', userCacheMiddleware(60));
 app.use('/wallet/transactions', userCacheMiddleware(120));
 
 // Static files for admin dashboard UI
+app.use(express.static(path.join(__dirname, '../public')));
 app.use('/admin', express.static(path.join(__dirname, '../public/admin')));
 
 // API routes
