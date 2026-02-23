@@ -6,6 +6,10 @@ function extractToken(req: Request): string | null {
     if (bearer && bearer.startsWith('Bearer ')) {
         return bearer.slice('Bearer '.length).trim();
     }
+    // Accept plain token (for frontend compatibility)
+    if (typeof bearer === 'string' && bearer.trim().length > 0 && !bearer.startsWith('Bearer ')) {
+        return bearer.trim();
+    }
     const headerToken = req.headers['x-admin-token'];
     if (typeof headerToken === 'string' && headerToken.trim().length > 0) {
         return headerToken.trim();
