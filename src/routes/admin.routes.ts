@@ -461,4 +461,28 @@ router.post('/queue-issues/:id/reopen', async (req, res) => {
   }
 });
 
+// Add wallets route for frontend compatibility
+router.get('/wallets', async (req, res) => {
+  try {
+    await ensureSystemState();
+    
+    const wallets = await prisma.user.findMany({
+      where: {
+        phone: { notIn: [SYSTEM_ADMIN_PHONE, SYSTEM_VAULT_PHONE] },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      select: {
+        phone: true,
+        balance: true,
+        createdAt: true,
+      },
+    });
+
+    return res.json(wallets);
+  } catch (e: any) {
+    logger.error(`[ADMIN] /wallets ${e.message}`);
+    return res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 export default router;

@@ -1,11 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
+<<<<<<< HEAD
+=======
 
+>>>>>>> 58964bb0d9e31e14299073bb0b76253ce13da1c2
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ZeroNetBank Admin</title>
     <style>
+<<<<<<< HEAD
+        body { font-family: sans-serif; padding: 20px; background: #f0f4f8; }
+        .header { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; }
+        .header img { width: 60px; height: 60px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+        .header h1 { margin: 0; color: #333; }
+        .card { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
+        h1 { color: #333; }
+        input, button { padding: 10px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #007bff; color: white; cursor: pointer; border: none; }
+        button:hover { background: #0056b3; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: left; }
+        th { background: #f8f9fa; }
+    </style>
+</head>
+=======
         body {
             font-family: sans-serif;
             padding: 20px;
@@ -81,12 +100,16 @@
     </style>
 </head>
 
+>>>>>>> 58964bb0d9e31e14299073bb0b76253ce13da1c2
 <body>
     <div class="header">
         <img src="logo.png" alt="ZeroNetPay Logo">
         <h1>ZeroNetBank Admin</h1>
     </div>
+<<<<<<< HEAD
+=======
 
+>>>>>>> 58964bb0d9e31e14299073bb0b76253ce13da1c2
     <div class="card">
         <h2>💰 Credit User</h2>
         <input type="text" id="phone" placeholder="Mobile Number (e.g. 9876543210)">
@@ -94,12 +117,24 @@
         <button onclick="creditUser()">Add Money</button>
         <p id="message"></p>
     </div>
+<<<<<<< HEAD
+=======
 
+>>>>>>> 58964bb0d9e31e14299073bb0b76253ce13da1c2
     <div class="card">
         <h2>👥 Wallets</h2>
         <button onclick="loadWallets()">Refresh List</button>
         <table>
             <thead>
+<<<<<<< HEAD
+                <tr><th>Phone</th><th>Balance</th><th>Created</th></tr>
+            </thead>
+            <tbody id="walletList">
+                <tr><td colspan="3">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+=======
                 <tr>
                     <th>Phone</th>
                     <th>Balance</th>
@@ -114,6 +149,7 @@
         </table>
     </div>
 
+>>>>>>> 58964bb0d9e31e14299073bb0b76253ce13da1c2
     <script>
         const API = window.location.origin;
         const ADMIN_TOKEN = 'admin-token-123';
@@ -126,11 +162,15 @@
                     'Authorization': ADMIN_TOKEN
                 }
             };
+<<<<<<< HEAD
+            if (data) options.body = JSON.stringify(data);
+=======
             
             if (data) {
                 options.body = JSON.stringify(data);
             }
             
+>>>>>>> 58964bb0d9e31e14299073bb0b76253ce13da1c2
             return fetch(url, options);
         }
 
@@ -138,12 +178,19 @@
             const phone = document.getElementById('phone').value;
             const amount = document.getElementById('amount').value;
             const msg = document.getElementById('message');
+<<<<<<< HEAD
+            if (!phone || !amount) { 
+                msg.innerText = "❌ Please enter phone and amount"; 
+                return; 
+            }
+=======
 
             if (!phone || !amount) {
                 msg.innerText = "❌ Please enter phone and amount";
                 return;
             }
 
+>>>>>>> 58964bb0d9e31e14299073bb0b76253ce13da1c2
             try {
                 const res = await adminRequest(`${API}/api/admin/credit`, 'POST', { phone, amount });
                 const data = await res.json();
@@ -153,8 +200,13 @@
                 } else {
                     msg.innerText = `❌ Error: ${data.error}`;
                 }
+<<<<<<< HEAD
+            } catch (e) { 
+                msg.innerText = `❌ Network Error: ${e.message}`; 
+=======
             } catch (e) {
                 msg.innerText = `❌ Network Error: ${e.message}`;
+>>>>>>> 58964bb0d9e31e14299073bb0b76253ce13da1c2
             }
         }
 
@@ -163,6 +215,22 @@
             try {
                 const res = await adminRequest(`${API}/api/admin/wallets`);
                 const wallets = await res.json();
+<<<<<<< HEAD
+                tbody.innerHTML = wallets.map(w => `
+                    <tr>
+                        <td>${w.mobile_number}</td>
+                        <td style="font-weight:bold; color: ${w.balance >= 0 ? 'green' : 'red'}">₹${w.balance}</td>
+                        <td>${new Date(w.created_at).toLocaleString()}</td>
+                    </tr>
+                `).join('');
+            } catch (e) { 
+                tbody.innerHTML = `<tr><td colspan="3">Error loading wallets</td></tr>`; 
+            }
+        }
+        loadWallets();
+    </script>
+</body>
+=======
 
                 tbody.innerHTML = wallets.map(w => `
                     <tr>
@@ -182,4 +250,5 @@
     </script>
 </body>
 
+>>>>>>> 58964bb0d9e31e14299073bb0b76253ce13da1c2
 </html>
