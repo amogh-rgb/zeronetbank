@@ -6,6 +6,7 @@ import { json } from 'body-parser';
 import { createServer } from 'http';
 import path from 'path';
 import OTPRoutes from './routes/otp.routes';
+import EmailRoutes from './routes/email.routes';
 import AdminRoutes from './routes/admin.routes';
 import UserRoutes from './routes/user.routes';
 
@@ -41,6 +42,9 @@ app.use('/api/users', UserRoutes);
 
 // OTP routes
 app.use('/api/otp', OTPRoutes);
+
+// Email routes
+app.use('/api/email', EmailRoutes);
 
 // Error handler
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
