@@ -1,12 +1,17 @@
 import nodemailer from 'nodemailer';
 import logger from '../utils/logger';
+<<<<<<< HEAD
 import { UserProfileService } from './user-profile.service';
+=======
+import crypto from 'crypto';
+>>>>>>> 6b520136e9b5d97ad4e43bc8938a8a2b0033ef76
 
 export class OTPService {
     private static otpStore: Map<string, { otp: string; expires: number; type: 'admin' | 'user' }> = new Map();
     private static emailTransporter: nodemailer.Transporter;
 
     static async initialize() {
+<<<<<<< HEAD
         // Initialize email transporter with Gmail
         this.emailTransporter = nodemailer.createTransport({
             host: 'smtp.gmail.com',
@@ -19,6 +24,16 @@ export class OTPService {
             },
             tls: {
                 rejectUnauthorized: false
+=======
+        // Initialize email transporter
+        this.emailTransporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST || 'smtp.gmail.com',
+            port: parseInt(process.env.SMTP_PORT || '587'),
+            secure: false,
+            auth: {
+                user: process.env.SMTP_USER || 'zeronetpay0@gmail.com',
+                pass: process.env.SMTP_PASS || 'cxcx zmlz udoo vrzi'
+>>>>>>> 6b520136e9b5d97ad4e43bc8938a8a2b0033ef76
             }
         });
     }
@@ -30,6 +45,7 @@ export class OTPService {
     static async sendOTP(identifier: string, type: 'admin' | 'user'): Promise<{ success: boolean; message: string }> {
         try {
             const otp = this.generateOTP();
+<<<<<<< HEAD
             const expires = Date.now() + 5 * 60 * 1000;
 
             // For admin, use fixed email
@@ -49,10 +65,14 @@ export class OTPService {
                     userInfo = `${identifier} (Auto-registered)`;
                 }
             }
+=======
+            const expires = Date.now() + 5 * 60 * 1000; // 5 minutes expiry
+>>>>>>> 6b520136e9b5d97ad4e43bc8938a8a2b0033ef76
 
             // Store OTP
             this.otpStore.set(identifier, { otp, expires, type });
 
+<<<<<<< HEAD
             // Send OTP via email to centralized email
             const emailSent = await this.sendOTPEmail(targetEmail, otp, type, userInfo);
 
@@ -62,6 +82,14 @@ export class OTPService {
                     success: true, 
                     message: `OTP sent to zeronetpay0@gmail.com for ${identifier}` 
                 };
+=======
+            // Send OTP via email
+            const emailSent = await this.sendOTPEmail(identifier, otp, type);
+
+            if (emailSent) {
+                logger.info(`OTP sent to ${identifier} for ${type} access`);
+                return { success: true, message: `OTP sent to ${identifier}` };
+>>>>>>> 6b520136e9b5d97ad4e43bc8938a8a2b0033ef76
             } else {
                 return { success: false, message: 'Failed to send OTP' };
             }
@@ -71,10 +99,17 @@ export class OTPService {
         }
     }
 
+<<<<<<< HEAD
     private static async sendOTPEmail(targetEmail: string, otp: string, type: 'admin' | 'user', userInfo: string): Promise<boolean> {
         try {
             const subject = type === 'admin' ? '🔐 ZeroNetBank Admin Access OTP' : '🏦 ZeroNetBank Banking Access OTP';
             const html = this.generateOTPEmailTemplate(otp, type, userInfo);
+=======
+    private static async sendOTPEmail(identifier: string, otp: string, type: 'admin' | 'user'): Promise<boolean> {
+        try {
+            const subject = type === 'admin' ? '🔐 ZeroNetBank Admin Access OTP' : '🏦 ZeroNetBank Banking Access OTP';
+            const html = this.generateOTPEmailTemplate(otp, type, identifier);
+>>>>>>> 6b520136e9b5d97ad4e43bc8938a8a2b0033ef76
 
             // Always use centralized ZeroNetPay email for all OTPs
             const mailOptions = {

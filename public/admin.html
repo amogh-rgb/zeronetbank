@@ -392,6 +392,10 @@
             
             .stats-grid {
                 grid-template-columns: 1fr;
+<<<<<<< HEAD
+=======
+            }
+>>>>>>> 6b520136e9b5d97ad4e43bc8938a8a2b0033ef76
         }
     </style>
 </head>
@@ -399,6 +403,7 @@
     <!-- Login Screen -->
     <div class="login-container" id="loginScreen">
         <div class="login-card">
+<<<<<<< HEAD
             <div class="admin-badge">
                 <i class="fas fa-shield-alt"></i> ADMIN ACCESS
             </div>
@@ -429,6 +434,23 @@
                 </button>
                 <p class="otp-hint">Check zeronetpay0@gmail.com for OTP</p>
             </div>
+=======
+            <h2><i class="fas fa-shield-alt"></i> Admin Access</h2>
+            <p style="color: #666; margin-bottom: 20px;">Enter your email to receive OTP</p>
+            <div class="form-group">
+                <input type="email" class="otp-input" id="adminEmail" placeholder="Enter your email" style="width: 100%; margin-bottom: 15px;">
+            </div>
+            <button class="login-btn" onclick="sendOTP()" style="margin-bottom: 15px;">
+                <i class="fas fa-envelope"></i> Send OTP
+            </button>
+            <div class="otp-input-group">
+                <input type="text" class="otp-input" id="otpInput" placeholder="Enter 6-digit OTP" maxlength="6" disabled>
+            </div>
+            <button class="login-btn" id="loginBtn" onclick="login()" disabled>
+                <i class="fas fa-sign-in-alt"></i> Access Dashboard
+            </button>
+            <p style="color: #999; font-size: 12px; margin-top: 15px;">Check your email for OTP</p>
+>>>>>>> 6b520136e9b5d97ad4e43bc8938a8a2b0033ef76
         </div>
     </div>
 
@@ -532,7 +554,10 @@
 
     <script>
         const API = window.location.origin;
+<<<<<<< HEAD
         const ADMIN_EMAIL = 'admin@zeronetpay.com';
+=======
+>>>>>>> 6b520136e9b5d97ad4e43bc8938a8a2b0033ef76
         let ws = null;
         let transactionChart = null;
         let balanceChart = null;
@@ -540,9 +565,16 @@
         // Login function
         async function login() {
             const otp = document.getElementById('otpInput').value;
+<<<<<<< HEAD
             
             if (!otp || otp.length !== 6) {
                 showNotification('Please enter 6-digit OTP!', 'error');
+=======
+            const adminEmail = document.getElementById('adminEmail').value;
+            
+            if (!adminEmail || !otp) {
+                showNotification('Please enter email and OTP!', 'error');
+>>>>>>> 6b520136e9b5d97ad4e43bc8938a8a2b0033ef76
                 return;
             }
             
@@ -550,7 +582,11 @@
                 const response = await fetch(`${API}/api/otp/verify`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+<<<<<<< HEAD
                     body: JSON.stringify({ identifier: ADMIN_EMAIL, otp, type: 'admin' })
+=======
+                    body: JSON.stringify({ identifier: adminEmail, otp, type: 'admin' })
+>>>>>>> 6b520136e9b5d97ad4e43bc8938a8a2b0033ef76
                 });
                 
                 const data = await response.json();
@@ -559,7 +595,11 @@
                     document.getElementById('loginScreen').style.display = 'none';
                     document.getElementById('dashboard').style.display = 'block';
                     initializeDashboard();
+<<<<<<< HEAD
                     showNotification('', 'success');
+=======
+                    showNotification('Login successful!', 'success');
+>>>>>>> 6b520136e9b5d97ad4e43bc8938a8a2b0033ef76
                 } else {
                     showNotification(data.message || 'Invalid OTP!', 'error');
                 }
@@ -570,22 +610,42 @@
 
         // Send OTP
         async function sendOTP() {
+<<<<<<< HEAD
+=======
+            const adminEmail = document.getElementById('adminEmail').value;
+            
+            if (!adminEmail) {
+                showNotification('Please enter your email!', 'error');
+                return;
+            }
+            
+>>>>>>> 6b520136e9b5d97ad4e43bc8938a8a2b0033ef76
             try {
                 const response = await fetch(`${API}/api/otp/send`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+<<<<<<< HEAD
                     body: JSON.stringify({ identifier: ADMIN_EMAIL, type: 'admin' })
+=======
+                    body: JSON.stringify({ identifier: adminEmail, type: 'admin' })
+>>>>>>> 6b520136e9b5d97ad4e43bc8938a8a2b0033ef76
                 });
                 
                 const data = await response.json();
                 
                 if (data.success) {
+<<<<<<< HEAD
                     document.getElementById('sendOtpBtn').style.display = 'none';
                     document.getElementById('otpSection').style.display = 'block';
                     showNotification('', 'success');
                     
                     // Focus on OTP input
                     document.getElementById('otpInput').focus();
+=======
+                    showNotification('OTP sent to your email!', 'success');
+                    document.getElementById('otpInput').disabled = false;
+                    document.getElementById('loginBtn').disabled = false;
+>>>>>>> 6b520136e9b5d97ad4e43bc8938a8a2b0033ef76
                 } else {
                     showNotification(data.message || 'Failed to send OTP!', 'error');
                 }

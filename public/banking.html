@@ -477,7 +477,11 @@
                 const data = await response.json();
                 
                 if (data.success) {
+<<<<<<< HEAD
                     showNotification('OTP sent to zeronetpay0@gmail.com!', 'success');
+=======
+                    showNotification('OTP sent to your phone!', 'success');
+>>>>>>> 6b520136e9b5d97ad4e43bc8938a8a2b0033ef76
                     document.getElementById('otpInput').disabled = false;
                     document.getElementById('loginBtn').disabled = false;
                 } else {
