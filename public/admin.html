@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
     <title>ZeroNetBank | Admin Dashboard</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
@@ -42,11 +41,10 @@
             margin-bottom: 35px;
         }
         
-        .login-logo i {
-            font-size: 56px;
-            background: var(--gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+        .login-logo svg {
+            width: 56px;
+            height: 56px;
+            fill: url(#grad1);
         }
         
         .login-logo h1 {
@@ -71,12 +69,14 @@
             position: relative;
         }
         
-        .input-wrapper i {
+        .input-wrapper svg {
             position: absolute;
             left: 16px;
             top: 50%;
             transform: translateY(-50%);
-            color: #9ca3af;
+            width: 20px;
+            height: 20px;
+            fill: #9ca3af;
         }
         
         .input-wrapper input {
@@ -98,6 +98,16 @@
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .btn svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
         }
         
         .alert {
@@ -134,11 +144,10 @@
             gap: 12px;
         }
         
-        .sidebar-logo i {
-            font-size: 32px;
-            background: var(--gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+        .sidebar-logo svg {
+            width: 32px;
+            height: 32px;
+            fill: url(#grad1);
         }
         
         .sidebar-logo h2 {
@@ -157,11 +166,18 @@
             border-radius: 12px;
             margin-bottom: 8px;
             cursor: pointer;
+            text-decoration: none;
         }
         
         .nav-item:hover, .nav-item.active {
             background: rgba(99, 102, 241, 0.1);
             color: var(--primary);
+        }
+        
+        .nav-item svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
         }
         
         .main-content {
@@ -174,6 +190,10 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 28px;
         }
         
         .stats-grid {
@@ -200,14 +220,34 @@
             font-size: 32px;
             font-weight: 700;
         }
+        
+        @media (max-width: 1024px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .main-content { margin-left: 0; }
+            .stats-grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
+    <svg width="0" height="0">
+        <defs>
+            <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+                <stop offset="50%" style="stop-color:#8b5cf6;stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#ec4899;stop-opacity:1" />
+            </linearGradient>
+        </defs>
+    </svg>
+
     <!-- Login -->
     <div id="loginContainer" class="login-container">
         <div class="login-box">
             <div class="login-logo">
-                <i class="fas fa-shield-alt"></i>
+                <svg viewBox="0 0 24 24"><path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/></svg>
                 <h1>ZeroNetBank Admin</h1>
             </div>
             
@@ -216,13 +256,14 @@
             <div class="input-group">
                 <label>Admin Email</label>
                 <div class="input-wrapper">
-                    <i class="fas fa-envelope"></i>
+                    <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
                     <input type="email" id="adminEmail" value="zeronetpay0@gmail.com">
                 </div>
             </div>
             
-            <button class="btn" onclick="adminLogin()">
-                <i class="fas fa-sign-in-alt"></i> Login
+            <button class="btn" id="loginBtn">
+                <svg viewBox="0 0 24 24"><path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
+                Login
             </button>
         </div>
     </div>
@@ -232,21 +273,33 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                 <div class="sidebar-logo">
-                    <i class="fas fa-shield-alt"></i>
+                    <svg viewBox="0 0 24 24"><path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/></svg>
                     <h2>ZeroNetBank</h2>
                 </div>
             </div>
             <nav class="nav-menu">
-                <a class="nav-item active"><i class="fas fa-chart-pie"></i><span>Overview</span></a>
-                <a class="nav-item"><i class="fas fa-users"></i><span>Users</span></a>
-                <a class="nav-item" onclick="logout()"><i class="fas fa-sign-out-alt"></i><span>Logout</span></a>
+                <a class="nav-item active">
+                    <svg viewBox="0 0 24 24"><path d="M11 2v20c-5.07-.5-9-4.79-9-10s3.93-9.5 9-10zm2.03 0v8.99H22c-.47-4.74-4.24-8.52-8.97-8.99zm0 11.01V22c4.74-.47 8.5-4.25 8.97-8.99h-8.97z"/></svg>
+                    <span>Overview</span>
+                </a>
+                <a class="nav-item">
+                    <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                    <span>Users</span>
+                </a>
+                <a class="nav-item logoutBtn">
+                    <svg viewBox="0 0 24 24"><path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
+                    <span>Logout</span>
+                </a>
             </nav>
         </aside>
 
         <main class="main-content">
             <div class="header">
                 <h1>Dashboard Overview</h1>
-                <button class="btn" onclick="logout()" style="width: auto; padding: 10px 20px;">Logout</button>
+                <button class="btn logoutBtn" style="width: auto; padding: 10px 20px;">
+                    <svg viewBox="0 0 24 24"><path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5c-1.11 0-2 .9-2 2v4h2V5h14v14H5v-4H3v4c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
+                    Logout
+                </button>
             </div>
 
             <div class="stats-grid">
@@ -270,44 +323,6 @@
         </main>
     </div>
 
-    <script>
-        const API_URL = window.location.origin;
-        
-        function adminLogin() {
-            const email = document.getElementById('adminEmail').value;
-            const alert = document.getElementById('alert');
-            
-            if (email !== 'zeronetpay0@gmail.com') {
-                alert.className = 'alert show';
-                alert.textContent = 'Invalid admin email';
-                return;
-            }
-            
-            document.getElementById('loginContainer').style.display = 'none';
-            document.getElementById('dashboard').style.display = 'block';
-            loadDashboard();
-        }
-        
-        async function loadDashboard() {
-            try {
-                const res = await fetch(`${API_URL}/api/admin/dashboard`);
-                const data = await res.json();
-                
-                if (data.success) {
-                    document.getElementById('totalUsers').textContent = data.stats.totalUsers;
-                    document.getElementById('totalTransactions').textContent = data.stats.totalTransactions;
-                    document.getElementById('totalBalance').textContent = '$' + parseFloat(data.stats.totalBalance).toLocaleString();
-                    document.getElementById('activeUsers').textContent = data.stats.activeUsers;
-                }
-            } catch (error) {
-                console.error('Error:', error);
-            }
-        }
-        
-        function logout() {
-            document.getElementById('dashboard').style.display = 'none';
-            document.getElementById('loginContainer').style.display = 'flex';
-        }
-    </script>
+    <script src="admin.js"></script>
 </body>
 </html>
