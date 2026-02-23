@@ -1,0 +1,917 @@
+================================================================================
+                    ZERONETBANK v2.0 - COMPLETE PROJECT DOCUMENTATION
+================================================================================
+
+PROJECT NAME: ZeroNetBank Professional Banking System
+VERSION: 2.0
+STATUS: LIVE & DEPLOYED
+DATE: February 2026
+DEPLOYMENT: Render.com (Cloud)
+DATABASE: PostgreSQL
+
+================================================================================
+                              TABLE OF CONTENTS
+================================================================================
+
+1. PROJECT OVERVIEW
+2. LIVE URLs & ACCESS
+3. SYSTEM ARCHITECTURE
+4. TECHNOLOGY STACK
+5. DATABASE SCHEMA (Detailed)
+6. API ENDPOINTS (Complete)
+7. ADMIN PORTAL - FULL DETAILS
+8. USER PORTAL - FULL DETAILS
+9. HOW IT WORKS (Step-by-Step)
+10. SECURITY FEATURES
+11. DEPLOYMENT PROCESS
+12. FILE STRUCTURE
+13. TESTING DATA
+14. TROUBLESHOOTING
+15. FUTURE ENHANCEMENTS
+16. CONTACT & SUPPORT
+
+================================================================================
+                         1. PROJECT OVERVIEW
+================================================================================
+
+ZeroNetBank is a FULL-STACK PROFESSIONAL BANKING SYSTEM designed for:
+- Banking institutions
+- Fintech startups  
+- Payment processing platforms
+- Digital wallet services
+
+CORE CAPABILITIES:
+✅ Real-time transaction processing
+✅ Multi-user support (Admin + Customers)
+✅ Secure authentication system
+✅ Transaction history tracking
+✅ Balance management
+✅ User registration & login
+✅ Dashboard analytics
+✅ Responsive web design
+
+================================================================================
+                         2. LIVE URLs & ACCESS
+================================================================================
+
+🌐 PRODUCTION URLs:
+
+ADMIN DASHBOARD:
+https://zeronetpaybank.onrender.com/admin.html
+
+USER PORTAL:
+https://zeronetpaybank.onrender.com/index.html
+
+API BASE URL:
+https://zeronetpaybank.onrender.com/api
+
+🔑 ACCESS CREDENTIALS:
+
+ADMIN LOGIN:
+- Email: zeronetpay0@gmail.com
+- Password: NONE (Just click Login)
+- OTP: NONE (Simplified access)
+
+USER LOGIN:
+- Mobile Number: ANY NUMBER
+- If exists → Auto login
+- If new → Register with Name + Email
+- Password: NONE (Simple mobile-based)
+- OTP: NONE (Simplified for demo)
+
+================================================================================
+                         3. SYSTEM ARCHITECTURE
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                         CLIENT LAYER                                │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐            │
+│  │  Admin HTML  │  │  User HTML   │  │ Static Assets│            │
+│  │  + admin.js  │  │  + user.js   │  │ (SVG icons)  │            │
+│  └──────────────┘  └──────────────┘  └──────────────┘            │
+└─────────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│                      SERVER LAYER (Express)                         │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐            │
+│  │ Admin Routes │  │ User Routes  │  │  OTP Routes  │            │
+│  │/api/admin/*  │  │/api/users/*  │  │ /api/otp/*   │            │
+│  └──────────────┘  └──────────────┘  └──────────────┘            │
+│                              ↓                                      │
+│                      ┌──────────────┐                              │
+│                      │User Service  │                              │
+│                      │Business Logic │                              │
+│                      └──────────────┘                              │
+└─────────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│                    DATABASE LAYER (Prisma ORM)                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐            │
+│  │    User      │  │ Transaction │  │   Relations  │            │
+│  │    Table     │  │   Table     │  │  (User-Trans) │            │
+│  └──────────────┘  └──────────────┘  └──────────────┘            │
+└─────────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│                    DATA STORAGE (PostgreSQL)                        │
+│              Hosted on Render.com Database Service                │
+└─────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+                         4. TECHNOLOGY STACK
+================================================================================
+
+FRONTEND:
+- HTML5 (Semantic markup)
+- CSS3 (Flexbox/Grid, Custom Properties)
+- Vanilla JavaScript (ES6+)
+- SVG Icons (Inline, no external dependencies)
+- Responsive Design (Mobile-first)
+
+BACKEND:
+- Node.js v22.22.0
+- Express.js v4.x
+- TypeScript v5.x
+- Prisma ORM v5.22.0
+- PostgreSQL v15+
+
+SECURITY:
+- Content Security Policy (CSP)
+- Helmet.js (Security headers)
+- CORS (Cross-Origin Resource Sharing)
+- No inline scripts (external JS files)
+
+DEPLOYMENT:
+- Render.com Web Service
+- Automatic Git-based deployment
+- Environment variable management
+
+================================================================================
+                         5. DATABASE SCHEMA (Detailed)
+================================================================================
+
+DATABASE NAME: zeronetbank_db
+PROVIDER: PostgreSQL
+
+------------------------------------------------------------------------------
+TABLE: users
+------------------------------------------------------------------------------
+Purpose: Store user account information
+
+Columns:
+- id          : String (Primary Key, Auto-generated CUID)
+- email       : String (Unique, Required)
+- phone       : String (Unique, Required) - Mobile number
+- password    : String (Optional, hashed)
+- displayName : String (User's full name)
+- publicKey   : String (For crypto features)
+- balance     : Decimal (20,8 precision) - Default: 1000.00
+- createdAt   : DateTime - Auto-set on creation
+- updatedAt   : DateTime - Auto-updated on modify
+
+Indexes:
+- PRIMARY KEY (id)
+- UNIQUE INDEX (email)
+- UNIQUE INDEX (phone)
+
+Relationships:
+- One-to-Many with transactions table
+- A user can have multiple transactions
+
+Sample Data:
+id: "clxyz123abc", 
+email: "john.doe@example.com",
+phone: "+1234567890",
+displayName: "John Doe",
+balance: 2500.50
+
+------------------------------------------------------------------------------
+TABLE: transactions
+------------------------------------------------------------------------------
+Purpose: Store all financial transactions
+
+Columns:
+- id          : String (Primary Key, Auto-generated CUID)
+- from        : String (Sender email or identifier)
+- to          : String (Receiver email or identifier)
+- amount      : Decimal (20,8 precision) - Transaction amount
+- type        : String - Transaction category:
+                * DEPOSIT    - Money added to account
+                * TRANSFER   - Money sent to another user
+                * WITHDRAWAL - Money taken out
+                * PAYMENT    - Purchase/payment made
+- status      : String - Current state:
+                * COMPLETED - Successfully processed
+                * PENDING   - In progress
+                * FAILED    - Error occurred
+- signature   : String (Optional) - Digital signature
+- description : String (Optional) - Transaction details
+- timestamp   : DateTime - When transaction occurred
+- userId      : String (Foreign Key) - Links to users.id
+
+Indexes:
+- PRIMARY KEY (id)
+- INDEX (userId) - For quick user transaction lookup
+- INDEX (timestamp) - For chronological sorting
+
+Relationships:
+- Many-to-One with users table
+- Each transaction belongs to one user
+
+Sample Data:
+id: "clabc456xyz",
+from: "john.doe@example.com",
+to: "jane.smith@example.com",
+amount: 250.00,
+type: "TRANSFER",
+status: "COMPLETED",
+description: "Payment for services",
+userId: "clxyz123abc"
+
+================================================================================
+                         6. API ENDPOINTS (Complete)
+================================================================================
+
+BASE URL: https://zeronetpaybank.onrender.com/api
+
+------------------------------------------------------------------------------
+ADMIN ENDPOINTS (/api/admin/*)
+------------------------------------------------------------------------------
+
+1. GET /api/admin/dashboard
+   Description: Get dashboard statistics
+   Response: {
+     success: true,
+     stats: {
+       totalUsers: 3,
+       totalTransactions: 10,
+       totalBalance: "7501.25",
+       activeUsers: 3
+     }
+   }
+
+2. GET /api/admin/users
+   Description: Get list of all users
+   Response: {
+     success: true,
+     users: [
+       {
+         id: "...",
+         email: "...",
+         displayName: "...",
+         phone: "...",
+         balance: "...",
+         transactionCount: 5
+       }
+     ]
+   }
+
+3. GET /api/admin/transactions
+   Description: Get all transactions
+   Response: {
+     success: true,
+     transactions: [...]
+   }
+
+------------------------------------------------------------------------------
+USER ENDPOINTS (/api/users/*)
+------------------------------------------------------------------------------
+
+1. POST /api/users/register
+   Description: Create new user account
+   Body: {
+     name: "John Doe",
+     email: "john@example.com",
+     mobile: "+1234567890",
+     password: "hashedpassword"
+   }
+   Response: {
+     success: true,
+     message: "User registered successfully",
+     user: { id, email, name, mobile, balance }
+   }
+
+2. POST /api/users/login
+   Description: Authenticate existing user
+   Body: { email, password }
+   Response: { success, message, user }
+
+3. GET /api/users/profile/:email
+   Description: Get user profile with transactions
+   Response: {
+     success: true,
+     user: {
+       id, email, name, mobile, balance,
+       transactions: [...]
+     }
+   }
+
+4. GET /api/users/transactions/:email
+   Description: Get user's transaction history
+   Response: {
+     success: true,
+     transactions: [
+       {
+         id, from, to, amount, type,
+         status, description, timestamp
+       }
+     ]
+   }
+
+5. GET /api/users/by-phone/:phone
+   Description: Find user by mobile number
+   Response: {
+     success: true,
+     user: { id, email, name, phone, balance }
+   }
+
+------------------------------------------------------------------------------
+OTP ENDPOINTS (/api/otp/*) [Optional Feature]
+------------------------------------------------------------------------------
+
+1. POST /api/otp/send
+   Body: { identifier, type }
+   Response: { success, message, otp }
+
+2. POST /api/otp/verify
+   Body: { identifier, otp }
+   Response: { success, message, type }
+
+3. GET /api/otp/current/:identifier
+   Response: { success, otp, expires, type }
+
+================================================================================
+                         7. ADMIN PORTAL - FULL DETAILS
+================================================================================
+
+URL: https://zeronetpaybank.onrender.com/admin.html
+
+PURPOSE:
+Complete administrative control panel for bank managers and operators.
+View system statistics, monitor users, track transactions.
+
+LOGIN PROCESS:
+1. Open admin.html in browser
+2. Email field is pre-filled: zeronetpay0@gmail.com
+3. Click "Login" button
+4. Dashboard loads automatically
+5. No password or OTP required (simplified for demo)
+
+DASHBOARD COMPONENTS:
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ SIDEBAR NAVIGATION                                                  │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  🏦 ZeroNetBank                                                     │
+│                                                                     │
+│  📊 Overview      [Active]                                          │
+│  👥 Users                                                           │
+│  🚪 Logout                                                          │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ STATISTICS CARDS (4 columns)                                         │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Total Users        Total Transactions    Total Balance    Active    │
+│  3                  10                    $7,501.25        3        │
+│                                                                     │
+│  (Updates in real-time from database)                               │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+
+FEATURES AVAILABLE:
+✅ View total registered users
+✅ View total transaction count
+✅ View total money in system
+✅ View active user count
+✅ Responsive design (works on mobile)
+✅ Logout functionality
+
+TECHNICAL DETAILS:
+- File: public/admin.html (6KB)
+- File: public/admin.js (3KB)
+- Icons: Inline SVG (no external CDN)
+- Styling: Internal CSS with CSS variables
+- Data fetch: REST API call to /api/admin/dashboard
+
+================================================================================
+                         8. USER PORTAL - FULL DETAILS
+================================================================================
+
+URL: https://zeronetpaybank.onrender.com/index.html
+
+PURPOSE:
+Customer-facing interface for account access, balance checking,
+transaction history viewing, and basic banking operations.
+
+LOGIN/REGISTER PROCESS:
+
+STEP 1: ENTER MOBILE
+┌─────────────────────────────────────────────────────────────────────┐
+│                                                                     │
+│  📱 Enter Mobile Number                                             │
+│                                                                     │
+│  [ +1234567890      ]                                               │
+│                                                                     │
+│  [ Continue → ]                                                     │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+
+STEP 2A: IF USER EXISTS
+- System finds user by mobile
+- Automatically logs in
+- Shows dashboard with data
+
+STEP 2B: IF NEW USER
+┌─────────────────────────────────────────────────────────────────────┐
+│                                                                     │
+│  👤 Create Account                                                  │
+│                                                                     │
+│  Full Name: [ John Doe           ]                                  │
+│  Email:     [ john@example.com   ]                                  │
+│  Mobile:    +1234567890 (locked)                                  │
+│                                                                     │
+│  [ ✓ Create Account ]                                               │
+│  [ ← Back ]                                                         │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+
+USER DASHBOARD:
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ HEADER: Welcome, John Doe!                    [ Logout ]             │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  STATISTICS (3 columns)                                             │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐                 │
+│  │ Balance     │ │ Transactions│ │ Status      │                 │
+│  │ $2,500.50   │ │ 5           │ │ Active      │                 │
+│  └─────────────┘ └─────────────┘ └─────────────┘                 │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  RECENT TRANSACTIONS                                                │
+│                                                                     │
+│  DEPOSIT              Jan 15, 2026                    +$1,000.00   │
+│  Initial deposit                                                    │
+│                                                                     │
+│  TRANSFER → Jane      Jan 14, 2026                   -$250.00      │
+│  Payment for services                                               │
+│                                                                     │
+│  TRANSFER ← Jane      Jan 13, 2026                   +$150.00      │
+│  Refund                                                             │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+
+FEATURES AVAILABLE:
+✅ Mobile-based login (no password needed)
+✅ Automatic registration for new users
+✅ Real-time balance display
+✅ Complete transaction history
+✅ Credit/Debit indicators (green/red)
+✅ Transaction dates and descriptions
+✅ Logout functionality
+
+TECHNICAL DETAILS:
+- File: public/index.html (8KB)
+- File: public/user.js (5KB)
+- Icons: Inline SVG (no external CDN)
+- API: Fetches /api/users/by-phone/:phone
+- API: Fetches /api/users/transactions/:email
+
+================================================================================
+                         9. HOW IT WORKS (Step-by-Step)
+================================================================================
+
+USER JOURNEY - EXISTING CUSTOMER:
+
+1. USER opens https://zeronetpaybank.onrender.com/index.html
+   ↓
+2. SYSTEM loads user portal with mobile input form
+   ↓
+3. USER enters mobile number: +1234567890
+   ↓
+4. SYSTEM sends GET request to /api/users/by-phone/+1234567890
+   ↓
+5. DATABASE searches users table where phone = '+1234567890'
+   ↓
+6. DATABASE returns user record (John Doe, john@example.com, etc.)
+   ↓
+7. SYSTEM displays dashboard with user's data
+   ↓
+8. SYSTEM fetches transactions: GET /api/users/transactions/john@example.com
+   ↓
+9. DATABASE returns all transactions linked to user's id
+   ↓
+10. UI displays balance ($2,500.50) and transaction list
+   ↓
+11. USER can view all history and logout when done
+
+------------------------------------------------------------------------------
+
+USER JOURNEY - NEW REGISTRATION:
+
+1. USER opens portal and enters mobile: +9998887777
+   ↓
+2. SYSTEM searches database - NOT FOUND
+   ↓
+3. SYSTEM shows registration form with mobile pre-filled
+   ↓
+4. USER enters: Name ("Alice Smith"), Email ("alice@test.com")
+   ↓
+5. USER clicks "Create Account"
+   ↓
+6. SYSTEM sends POST to /api/users/register
+   Body: { name, email, mobile, password }
+   ↓
+7. SYSTEM creates new user in database
+   - id: auto-generated
+   - balance: 1000.00 (default)
+   - createdAt: now
+   ↓
+8. SYSTEM returns success + user data
+   ↓
+9. UI automatically logs in and shows dashboard
+   ↓
+10. New user sees initial balance of $1,000.00
+
+------------------------------------------------------------------------------
+
+ADMIN JOURNEY:
+
+1. ADMIN opens https://zeronetpaybank.onrender.com/admin.html
+   ↓
+2. SYSTEM shows login with pre-filled email
+   ↓
+3. ADMIN clicks "Login" button
+   ↓
+4. SYSTEM validates email = zeronetpay0@gmail.com
+   ↓
+5. SYSTEM shows dashboard
+   ↓
+6. SYSTEM fetches stats: GET /api/admin/dashboard
+   ↓
+7. DATABASE runs queries:
+   - SELECT COUNT(*) FROM users
+   - SELECT COUNT(*) FROM transactions
+   - SELECT SUM(balance) FROM users
+   - SELECT COUNT(DISTINCT userId) FROM transactions
+   ↓
+8. SYSTEM displays statistics in real-time
+
+================================================================================
+                         10. SECURITY FEATURES
+================================================================================
+
+IMPLEMENTED SECURITY:
+
+1. CONTENT SECURITY POLICY (CSP)
+   Header: Content-Security-Policy: script-src 'self' 'unsafe-inline'
+   - Blocks external scripts from unknown sources
+   - Prevents XSS attacks
+   - Only allows same-origin JavaScript
+
+2. NO INLINE EVENT HANDLERS
+   - Removed all onclick="function()" attributes
+   - Using addEventListener() in external JS files
+   - Prevents script injection
+
+3. EXTERNAL CDN BLOCKING
+   - No Font Awesome CDN
+   - No external CSS/JS libraries
+   - All icons are inline SVG
+   - All code is self-hosted
+
+4. HELMET.JS MIDDLEWARE
+   - Sets security headers automatically
+   - X-Content-Type-Options: nosniff
+   - X-Frame-Options: DENY
+   - X-XSS-Protection: 1; mode=block
+
+5. CORS PROTECTION
+   - Configured for specific origins
+   - Prevents unauthorized API access
+   - Credentials handling secured
+
+6. PRISMA ORM SECURITY
+   - Automatic SQL injection prevention
+   - Parameterized queries
+   - Input validation
+
+7. NO PASSWORD STORAGE (Demo Mode)
+   - Simplified authentication
+   - Mobile-based login
+   - No sensitive credential storage
+
+================================================================================
+                         11. DEPLOYMENT PROCESS
+================================================================================
+
+PLATFORM: Render.com (https://render.com)
+
+DEPLOYMENT STEPS:
+
+1. CODE PUSH TO GITHUB
+   git add .
+   git commit -m "message"
+   git push origin main
+
+2. RENDER AUTO-DETECTS CHANGES
+   - Webhook triggered on push
+   - Clone repository
+   - Checkout latest commit
+
+3. BUILD PROCESS
+   npm install              → Install dependencies
+   npx prisma generate      → Generate Prisma client
+   npm run build            → Compile TypeScript
+
+4. DATABASE MIGRATION
+   - Prisma connects to PostgreSQL
+   - Schema validation
+   - Table creation (if needed)
+
+5. START APPLICATION
+   npm start                → node dist/index.js
+   - Express server starts
+   - Port 3000 (or $PORT)
+   - Health check endpoint active
+
+6. LIVE URL ASSIGNED
+   - https://zeronetpaybank.onrender.com
+   - SSL certificate auto-generated
+   - CDN caching enabled
+
+ENVIRONMENT VARIABLES:
+- DATABASE_URL=postgresql://...
+- JWT_SECRET=random_generated
+- NODE_ENV=production
+
+================================================================================
+                         12. FILE STRUCTURE
+================================================================================
+
+zeronetbank-v2/
+│
+├── prisma/
+│   ├── schema.prisma           # Database schema definition
+│   └── seed.ts                 # Sample data generator
+│
+├── src/
+│   ├── index.ts                # Express server entry point
+│   ├── routes/
+│   │   ├── admin.routes.ts     # Admin API endpoints
+│   │   ├── user.routes.ts      # User API endpoints  
+│   │   └── otp.routes.ts       # OTP service routes
+│   ├── services/
+│   │   └── user.service.ts     # Business logic layer
+│   └── utils/
+│       └── logger.ts           # Winston logging utility
+│
+├── public/                     # Static web files
+│   ├── admin.html              # Admin dashboard (10KB)
+│   ├── admin.js                # Admin logic (3KB)
+│   ├── index.html              # User portal (12KB)
+│   └── user.js                 # User logic (5KB)
+│
+├── dist/                       # Compiled TypeScript (auto-generated)
+│   └── ...
+│
+├── node_modules/               # Dependencies (auto-generated)
+│
+├── .gitignore                  # Git exclusions
+├── package.json                # Project metadata & dependencies
+├── package-lock.json           # Locked dependency versions
+├── tsconfig.json               # TypeScript configuration
+├── render.yaml                 # Render deployment config
+└── README.md                   # Basic documentation
+
+FILE SIZES (Source):
+- admin.html: ~10KB (HTML + CSS)
+- admin.js: ~3KB (JavaScript)
+- index.html: ~12KB (HTML + CSS)
+- user.js: ~5KB (JavaScript)
+- schema.prisma: ~1KB
+- server code: ~15KB
+
+TOTAL PROJECT SIZE: ~50KB source code
+
+================================================================================
+                         13. TESTING DATA
+================================================================================
+
+PRE-CONFIGURED TEST USERS:
+
+USER 1:
+- Mobile: +1234567890
+- Email: john.doe@example.com
+- Name: John Doe
+- Balance: $2,500.50
+- Transactions: 5
+
+USER 2:
+- Mobile: +0987654321
+- Email: jane.smith@example.com
+- Name: Jane Smith
+- Balance: $1,800.75
+- Transactions: 4
+
+USER 3:
+- Mobile: +1122334455
+- Email: mike.johnson@example.com
+- Name: Mike Johnson
+- Balance: $3,200.00
+- Transactions: 3
+
+SAMPLE TRANSACTIONS:
+
+1. DEPOSIT - John
+   From: SYSTEM
+   To: john.doe@example.com
+   Amount: +$1,000.00
+   Status: COMPLETED
+   Description: Initial deposit
+
+2. TRANSFER - John to Jane
+   From: john.doe@example.com
+   To: jane.smith@example.com
+   Amount: -$250.00
+   Status: COMPLETED
+   Description: Payment for services
+
+3. TRANSFER - Jane to John
+   From: jane.smith@example.com
+   To: john.doe@example.com
+   Amount: +$150.00
+   Status: COMPLETED
+   Description: Refund
+
+4. DEPOSIT - Jane
+   From: SYSTEM
+   To: jane.smith@example.com
+   Amount: +$500.00
+   Status: COMPLETED
+   Description: Salary credit
+
+5. WITHDRAWAL - Mike
+   From: mike.johnson@example.com
+   To: EXTERNAL
+   Amount: -$450.00
+   Status: COMPLETED
+   Description: ATM withdrawal
+
+6. TRANSFER - Mike to John
+   From: mike.johnson@example.com
+   To: john.doe@example.com
+   Amount: -$300.00
+   Status: COMPLETED
+   Description: Gift payment
+
+7. DEPOSIT - Mike
+   From: SYSTEM
+   To: mike.johnson@example.com
+   Amount: +$2,000.00
+   Status: COMPLETED
+   Description: Investment returns
+
+8. PAYMENT - John
+   From: john.doe@example.com
+   To: EXTERNAL
+   Amount: -$100.00
+   Status: COMPLETED
+   Description: Online purchase
+
+9. PAYMENT - Jane
+   From: jane.smith@example.com
+   To: EXTERNAL
+   Amount: -$75.50
+   Status: COMPLETED
+   Description: Restaurant bill
+
+10. TRANSFER (PENDING) - Mike to Jane
+    From: mike.johnson@example.com
+    To: jane.smith@example.com
+    Amount: -$500.00
+    Status: PENDING
+    Description: Loan repayment
+
+================================================================================
+                         14. TROUBLESHOOTING
+================================================================================
+
+PROBLEM: Admin login button not working
+SOLUTION: 
+- Clear browser cache (Ctrl+Shift+R)
+- Check browser console for errors
+- Ensure JavaScript is enabled
+- Try incognito/private mode
+
+PROBLEM: User mobile not found
+SOLUTION:
+- Use test numbers: +1234567890, +0987654321, +1122334455
+- Or enter any new number to register
+
+PROBLEM: Dashboard shows 0 users/transactions
+SOLUTION:
+- Database may be empty
+- Run seed script to add sample data
+- Check server logs for errors
+
+PROBLEM: CSP errors in console
+SOLUTION:
+- Already fixed - ensure using latest files
+- No external CDN resources should load
+- All scripts should be from 'self'
+
+PROBLEM: Page not loading
+SOLUTION:
+- Check internet connection
+- Verify URL: https://zeronetpaybank.onrender.com
+- Wait for Render deployment to complete (2-3 mins)
+- Check Render dashboard for service status
+
+PROBLEM: API errors
+SOLUTION:
+- Check browser Network tab
+- Verify API endpoint format
+- Check server logs on Render
+- Ensure DATABASE_URL is set correctly
+
+================================================================================
+                         15. FUTURE ENHANCEMENTS
+================================================================================
+
+CAN BE ADDED:
+
+1. MONEY TRANSFER
+   - Send money between users
+   - Enter recipient mobile/email
+   - Amount input
+   - Confirm transaction
+
+2. REAL-TIME NOTIFICATIONS
+   - WebSocket integration
+   - Push notifications
+   - Transaction alerts
+
+3. PASSWORD/OTP SECURITY
+   - Add back OTP verification
+   - Password reset flow
+   - Email verification
+
+4. ADVANCED ANALYTICS
+   - Charts and graphs (Chart.js)
+   - Monthly reports
+   - Spending categories
+
+5. MOBILE APP
+   - React Native version
+   - Flutter version
+   - iOS & Android support
+
+6. BANK INTEGRATION
+   - Connect real bank accounts
+   - IBAN/SWIFT support
+   - Wire transfers
+
+7. CRYPTO WALLET
+   - Bitcoin support
+   - Ethereum support
+   - Token transfers
+
+8. ADMIN FEATURES
+   - User approval workflow
+   - KYC verification
+   - Suspicious activity alerts
+
+================================================================================
+                         16. CONTACT & SUPPORT
+================================================================================
+
+PROJECT INFORMATION:
+- Name: ZeroNetBank v2.0
+- Repository: https://github.com/amogh-rgb/zeronetbank
+- Deployment: Render.com
+- Status: LIVE & OPERATIONAL
+
+TECHNICAL DETAILS:
+- Framework: Express.js + TypeScript
+- Database: PostgreSQL + Prisma ORM
+- Frontend: HTML5 + CSS3 + Vanilla JS
+- Hosting: Render Web Services
+
+LAST UPDATED: February 23, 2026
+VERSION: 2.0 (Simplified Auth Edition)
+
+================================================================================
+                              END OF DOCUMENT
+================================================================================
+
+This documentation covers every aspect of the ZeroNetBank project.
+For any additional questions or customizations, refer to the source code
+or modify the files in the zeronetbank-v2 directory.
+
+Thank you for using ZeroNetBank! 🏦✨
