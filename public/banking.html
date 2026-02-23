@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZeroNetBank - Personal Banking</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .login-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .login-card h2 {
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            color: #666;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .dashboard-container {
+            display: none;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 25px 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-info h1 {
+            color: #333;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .user-info p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .balance-display {
+            text-align: right;
+        }
+
+        .balance-amount {
+            font-size: 32px;
+            font-weight: 700;
+            color: #10b981;
+            margin-bottom: 5px;
+        }
+
+        .balance-label {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .logout-btn {
+            padding: 10px 20px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .logout-btn:hover {
+            background: #dc2626;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            color: #333;
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .transaction-form {
+            display: grid;
+            gap: 15px;
+        }
+
+        .form-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #333;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .transactions-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .transaction-item {
+            background: #f8fafc;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .transaction-item:hover {
+            background: #f1f5f9;
+            transform: translateX(5px);
+        }
+
+        .transaction-info h4 {
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .transaction-info p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .transaction-amount {
+            text-align: right;
+        }
+
+        .amount.credit {
+            color: #10b981;
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .amount.debit {
+            color: #ef4444;
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .charts-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+        }
+
+        .chart-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-card h3 {
+            color: #333;
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 10px;
+            color: white;
+            font-weight: 600;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+
+        .notification.success {
+            background: #10b981;
+        }
+
+        .notification.error {
+            background: #ef4444;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .header-content {
+                flex-direction: column;
+                text-align: center;
+                gap: 20px;
+            }
+            
+            .balance-display {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div class="login-container" id="loginScreen">
+        <div class="login-card">
+            <h2><i class="fas fa-university"></i> ZeroNetBank</h2>
+            <p style="color: #666; margin-bottom: 20px;">Access your personal banking dashboard</p>
+            <div class="form-group">
+                <label>Phone Number</label>
+                <input type="text" id="phoneInput" placeholder="Enter your phone number">
+            </div>
+            <button class="login-btn" onclick="sendOTP()" style="margin-bottom: 15px;">
+                <i class="fas fa-envelope"></i> Send OTP
+            </button>
+            <div class="form-group">
+                <label>OTP</label>
+                <input type="text" id="otpInput" placeholder="Enter 6-digit OTP" maxlength="6" disabled>
+            </div>
+            <button class="login-btn" id="loginBtn" onclick="login()" disabled>
+                <i class="fas fa-sign-in-alt"></i> Login to Banking
+            </button>
+            <p style="color: #999; font-size: 12px; margin-top: 15px;">Check your phone for OTP</p>
+        </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div class="dashboard-container" id="dashboard">
+        <div class="header">
+            <div class="header-content">
+                <div class="user-info">
+                    <h1 id="userName">Welcome Back!</h1>
+                    <p id="userPhone">+91 **********</p>
+                </div>
+                <div class="balance-display">
+                    <div class="balance-amount" id="currentBalance">₹0</div>
+                    <div class="balance-label">Current Balance</div>
+                </div>
+                <button class="logout-btn" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Quick Actions -->
+            <div class="card">
+                <h2><i class="fas fa-exchange-alt"></i> Quick Actions</h2>
+                <div class="transaction-form">
+                    <div class="form-group">
+                        <label>Transfer To</label>
+                        <input type="text" id="transferPhone" placeholder="Enter phone number">
+                    </div>
+                    <div class="form-group">
+                        <label>Amount</label>
+                        <input type="number" id="transferAmount" placeholder="Enter amount">
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-primary" onclick="sendMoney()">
+                            <i class="fas fa-paper-plane"></i> Send Money
+                        </button>
+                        <button class="btn btn-secondary" onclick="requestMoney()">
+                            <i class="fas fa-hand-holding-usd"></i> Request
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Transactions -->
+            <div class="card">
+                <h2><i class="fas fa-history"></i> Recent Transactions</h2>
+                <div class="transactions-list" id="transactionsList">
+                    <!-- Transactions will be loaded here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="charts-container">
+            <div class="chart-card">
+                <h3><i class="fas fa-chart-line"></i> Balance History</h3>
+                <canvas id="balanceChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = window.location.origin;
+        let currentUser = null;
+        let ws = null;
+        let balanceChart = null;
+
+        // Login function
+        async function login() {
+            const phone = document.getElementById('phoneInput').value;
+            const otp = document.getElementById('otpInput').value;
+            
+            if (!phone || !otp) {
+                showNotification('Please fill all fields!', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API}/api/otp/verify`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ identifier: phone, otp, type: 'user' })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentUser = { phone };
+                    document.getElementById('loginScreen').style.display = 'none';
+                    document.getElementById('dashboard').style.display = 'block';
+                    initializeDashboard();
+                    showNotification('Login successful!', 'success');
+                } else {
+                    showNotification(data.message || 'Invalid OTP!', 'error');
+                }
+            } catch (error) {
+                showNotification('Network error!', 'error');
+            }
+        }
+
+        // Send OTP
+        async function sendOTP() {
+            const phone = document.getElementById('phoneInput').value;
+            
+            if (!phone) {
+                showNotification('Please enter your phone number!', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API}/api/otp/send`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ identifier: phone, type: 'user' })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('OTP sent to your phone!', 'success');
+                    document.getElementById('otpInput').disabled = false;
+                    document.getElementById('loginBtn').disabled = false;
+                } else {
+                    showNotification(data.message || 'Failed to send OTP!', 'error');
+                }
+            } catch (error) {
+                showNotification('Network error!', 'error');
+            }
+        }
+
+        // Logout function
+        function logout() {
+            document.getElementById('loginScreen').style.display = 'flex';
+            document.getElementById('dashboard').style.display = 'none';
+            currentUser = null;
+            if (ws) ws.close();
+        }
+
+        // Show notification
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // Initialize dashboard
+        function initializeDashboard() {
+            updateUserInfo();
+            loadUserData();
+            initializeCharts();
+            initializeWebSocket();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(loadUserData, 30000);
+        }
+
+        // Update user info display
+        function updateUserInfo() {
+            if (currentUser) {
+                document.getElementById('userName').textContent = `Welcome, ${currentUser.phone}!`;
+                document.getElementById('userPhone').textContent = currentUser.phone;
+            }
+        }
+
+        // Load user data
+        async function loadUserData() {
+            if (!currentUser) return;
+            
+            try {
+                // Load balance
+                const balanceResponse = await fetch(`${API}/api/wallet/${currentUser.phone}`);
+                const balanceData = await balanceResponse.json();
+                
+                if (balanceData.balance !== undefined) {
+                    document.getElementById('currentBalance').textContent = `₹${balanceData.balance.toLocaleString()}`;
+                }
+                
+                // Load transactions
+                loadTransactions();
+                
+            } catch (error) {
+                console.error('Error loading user data:', error);
+            }
+        }
+
+        // Load transactions
+        async function loadTransactions() {
+            try {
+                const response = await fetch(`${API}/api/admin/wallets`, {
+                    headers: { 'Authorization': 'admin-token-123' }
+                });
+                const users = await response.json();
+                
+                const currentUserData = users.find(u => u.phone === currentUser.phone);
+                
+                if (currentUserData) {
+                    // Mock transactions for demo
+                    const transactions = [
+                        { type: 'credit', amount: 5000, description: 'Initial Deposit', date: new Date() },
+                        { type: 'debit', amount: 1000, description: 'Transfer to 9876543210', date: new Date(Date.now() - 86400000) },
+                        { type: 'credit', amount: 2000, description: 'Received from 9876543210', date: new Date(Date.now() - 172800000) }
+                    ];
+                    
+                    updateTransactionsList(transactions);
+                }
+            } catch (error) {
+                console.error('Error loading transactions:', error);
+            }
+        }
+
+        // Update transactions list
+        function updateTransactionsList(transactions) {
+            const transactionsList = document.getElementById('transactionsList');
+            
+            if (transactions.length === 0) {
+                transactionsList.innerHTML = '<p style="text-align: center; color: #666;">No transactions yet</p>';
+                return;
+            }
+            
+            transactionsList.innerHTML = transactions.map(tx => `
+                <div class="transaction-item">
+                    <div class="transaction-info">
+                        <h4>${tx.description}</h4>
+                        <p>${new Date(tx.date).toLocaleDateString()}</p>
+                    </div>
+                    <div class="transaction-amount">
+                        <div class="amount ${tx.type}">
+                            ${tx.type === 'credit' ? '+' : '-'}₹${tx.amount.toLocaleString()}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Send money
+        async function sendMoney() {
+            const toPhone = document.getElementById('transferPhone').value;
+            const amount = parseFloat(document.getElementById('transferAmount').value);
+            
+            if (!toPhone || !amount || amount <= 0) {
+                showNotification('Please fill all fields correctly!', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API}/api/admin/credit`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'admin-token-123',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ phone: toPhone, amount })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Successfully sent ₹${amount} to ${toPhone}`, 'success');
+                    
+                    // Clear form
+                    document.getElementById('transferPhone').value = '';
+                    document.getElementById('transferAmount').value = '';
+                    
+                    // Reload data
+                    loadUserData();
+                } else {
+                    showNotification(data.error || 'Transfer failed!', 'error');
+                }
+            } catch (error) {
+                showNotification('Network error!', 'error');
+            }
+        }
+
+        // Request money
+        function requestMoney() {
+            const toPhone = document.getElementById('transferPhone').value;
+            const amount = document.getElementById('transferAmount').value;
+            
+            if (!toPhone || !amount) {
+                showNotification('Please fill all fields!', 'error');
+                return;
+            }
+            
+            showNotification(`Money request sent to ${toPhone}`, 'success');
+            
+            // Clear form
+            document.getElementById('transferPhone').value = '';
+            document.getElementById('transferAmount').value = '';
+        }
+
+        // Initialize charts
+        function initializeCharts() {
+            const ctx = document.getElementById('balanceChart').getContext('2d');
+            balanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    datasets: [{
+                        label: 'Balance',
+                        data: [5000, 4000, 6000, 5500, 7000, 6500, 8000],
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '₹' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initialize WebSocket for real-time updates
+        function initializeWebSocket() {
+            try {
+                ws = new WebSocket(`wss://${window.location.host}/ws`);
+                
+                ws.onopen = () => {
+                    console.log('WebSocket connected');
+                };
+                
+                ws.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    handleRealTimeUpdate(data);
+                };
+                
+                ws.onclose = () => {
+                    console.log('WebSocket disconnected');
+                    setTimeout(initializeWebSocket, 5000);
+                };
+            } catch (error) {
+                console.error('WebSocket error:', error);
+            }
+        }
+
+        // Handle real-time updates
+        function handleRealTimeUpdate(data) {
+            if (data.type === 'transaction') {
+                showNotification('New transaction received!', 'success');
+                loadUserData();
+            }
+        }
+
+        // Handle Enter key in inputs
+        document.getElementById('otpInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                login();
+            }
+        });
+    </script>
+</body>
+</html>
