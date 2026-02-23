@@ -89,7 +89,7 @@ class UserService {
 
       const hashedPassword = this.hashPassword(password);
 
-      if (user.publicKey !== hashedPassword) {
+      if (user.password !== hashedPassword) {
         return { success: false, message: 'Invalid password' };
       }
 
