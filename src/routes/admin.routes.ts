@@ -461,4 +461,72 @@ router.post('/queue-issues/:id/reopen', async (req, res) => {
   }
 });
 
+// Add credit route for admin panel
+router.post('/credit', async (req, res) => {
+  try {
+    await ensureSystemState();
+    
+    const { phone, amount } = req.body;
+    
+    if (!phone || !amount) {
+      return res.status(400).json({ success: false, error: 'Phone and amount required' });
+    }
+    
+    const creditAmount = parseFloat(amount);
+    if (isNaN(creditAmount) || creditAmount <= 0) {
+      return res.status(400).json({ success: false, error: 'Invalid amount' });
+    }
+    
+    // Create or update user balance
+    const user = await prisma.user.upsert({
+      where: { phone },
+      update: {
+        balance: { increment: creditAmount }
+      },
+      create: {
+        phone,
+        balance: creditAmount,
+        publicKey: 'temp-key-' + Date.now(),
+        displayName: `User ${phone}`
+      }
+    });
+    
+    return res.json({ 
+      success: true, 
+      message: `Credited ${creditAmount} to ${phone}`,
+      user: {
+        phone: user.phone,
+        balance: user.balance
+      }
+    });
+  } catch (e: any) {
+    logger.error(`[ADMIN] /credit ${e.message}`);
+    return res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Add wallets route for frontend compatibility
+router.get('/wallets', async (req, res) => {
+  try {
+    await ensureSystemState();
+    
+    const wallets = await prisma.user.findMany({
+      where: {
+        phone: { notIn: [SYSTEM_ADMIN_PHONE, SYSTEM_VAULT_PHONE] },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      select: {
+        phone: true,
+        balance: true,
+        createdAt: true,
+      },
+    });
+
+    return res.json(wallets);
+  } catch (e: any) {
+    logger.error(`[ADMIN] /wallets ${e.message}`);
+    return res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 export default router;

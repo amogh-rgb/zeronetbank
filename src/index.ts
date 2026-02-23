@@ -3,12 +3,18 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { json } from 'body-parser';
+import { createServer } from 'http';
 
 import AuthRoutes from './routes/auth.routes';
 import WalletRoutes from './routes/wallet.routes';
 import AdminRoutes from './routes/admin.routes';
 import PublicRoutes from './routes/public.routes';
 import EmailRoutes from './routes/email.routes';
+import OTPRoutes from './routes/otp.routes';
+import SMSRoutes from './routes/sms.routes';
+import RegistrationRoutes from './routes/registration.routes';
+import UserProfileRoutes from './routes/user-profile.routes';
+import { setupWebSocket } from './routes/websocket.routes';
 import { adaptiveLimiter, syncLimiter, transactionLimiter } from './middleware/intelligentRateLimit.middleware';
 import { cacheMiddleware, userCacheMiddleware } from './middleware/cache.middleware';
 import { adminAuth } from './middleware/adminAuth.middleware';
@@ -79,6 +85,10 @@ app.use('/auth', AuthRoutes);
 app.use('/wallet', WalletRoutes); 
 app.use('/api/admin', adminAuth, AdminRoutes); 
 app.use('/api/public', PublicRoutes); 
+app.use('/api/otp', OTPRoutes);
+app.use('/api/sms', SMSRoutes);
+app.use('/api/registration', RegistrationRoutes);
+app.use('/api/profile', UserProfileRoutes);
 app.use('/email', EmailRoutes);
 
 // Compatibility routes (legacy app/backend clients)
@@ -95,8 +105,12 @@ if (require.main === module) {
   ensureSystemState()
     .catch((e) => logger.error(`System bootstrap failed: ${e}`))
     .finally(() => {
-      app.listen(PORT, '0.0.0.0', () => {
+      const server = createServer(app);
+      const io = setupWebSocket(server);
+      
+      server.listen(PORT, '0.0.0.0', () => {
         logger.info(`ZeroNetBank Authority running on http://0.0.0.0:${PORT}`);
+        logger.info(`WebSocket server initialized`);
         logger.info(`Mode: ${process.env.NODE_ENV || 'development'}`);
       });
     });
