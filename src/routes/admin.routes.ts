@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import UserService from '../services/user.service';
 import logger from '../utils/logger';
 
 const router = express.Router();
@@ -7,17 +8,8 @@ const router = express.Router();
 router.get('/dashboard', async (_req: Request, res: Response) => {
   try {
     logger.info('[ADMIN] Dashboard accessed');
-    
-    return res.json({
-      success: true,
-      stats: {
-        totalUsers: 0,
-        totalTransactions: 0,
-        totalBalance: 0,
-        activeUsers: 0
-      },
-      message: 'Admin dashboard data'
-    });
+    const result = await UserService.getDashboardStats();
+    return res.json(result);
   } catch (error) {
     logger.error('[ADMIN] Dashboard error:', error);
     return res.status(500).json({ success: false, error: 'Failed to load dashboard' });
@@ -28,12 +20,8 @@ router.get('/dashboard', async (_req: Request, res: Response) => {
 router.get('/users', async (_req: Request, res: Response) => {
   try {
     logger.info('[ADMIN] Users list accessed');
-    
-    return res.json({
-      success: true,
-      users: [],
-      message: 'Users list'
-    });
+    const result = await UserService.getAllUsers();
+    return res.json(result);
   } catch (error) {
     logger.error('[ADMIN] Users error:', error);
     return res.status(500).json({ success: false, error: 'Failed to load users' });
@@ -44,7 +32,6 @@ router.get('/users', async (_req: Request, res: Response) => {
 router.get('/transactions', async (_req: Request, res: Response) => {
   try {
     logger.info('[ADMIN] Transactions accessed');
-    
     return res.json({
       success: true,
       transactions: [],

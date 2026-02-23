@@ -7,6 +7,7 @@ import { createServer } from 'http';
 import path from 'path';
 import OTPRoutes from './routes/otp.routes';
 import AdminRoutes from './routes/admin.routes';
+import UserRoutes from './routes/user.routes';
 
 // Load environment variables
 dotenv.config();
@@ -34,6 +35,9 @@ app.get('/api', (_req: Request, res: Response) => {
 
 // Admin routes
 app.use('/api/admin', AdminRoutes);
+
+// User routes
+app.use('/api/users', UserRoutes);
 
 // OTP routes
 app.use('/api/otp', OTPRoutes);
