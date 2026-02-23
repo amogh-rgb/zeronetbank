@@ -1,8 +1,10 @@
 import express, { Request, Response } from 'express';
+import { PrismaClient } from '@prisma/client';
 import UserService from '../services/user.service';
 import logger from '../utils/logger';
 
 const router = express.Router();
+const prisma = new PrismaClient();
 
 // Register new user
 router.post('/register', async (req: Request, res: Response) => {
@@ -144,6 +146,49 @@ router.post('/forgot-password', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: 'Request failed'
+    });
+  }
+});
+
+// Get user by phone number
+router.get('/by-phone/:phone', async (req: Request, res: Response) => {
+  try {
+    const { phone } = req.params;
+    
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number is required'
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { phone }
+    });
+
+    if (user) {
+      logger.info(`[API] User found by phone: ${phone}`);
+      return res.json({
+        success: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.displayName,
+          phone: user.phone,
+          balance: user.balance
+        }
+      });
+    } else {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+  } catch (error) {
+    logger.error('[API] Find by phone error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to find user'
     });
   }
 });
