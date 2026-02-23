@@ -1,4 +1,3 @@
-cat > public/admin.html << 'EOF'
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -81,7 +80,7 @@ cat > public/admin.html << 'EOF'
             }
 
             try {
-                const res = await adminRequest(`${API}/api/admin/wallets`, 'POST', { phone, amount });
+                const res = await adminRequest(`${API}/api/admin/credit`, 'POST', { phone, amount });
                 const data = await res.json();
                 if (data.success) {
                     msg.innerText = `✅ Added ${amount} to ${phone}`;
@@ -117,4 +116,3 @@ cat > public/admin.html << 'EOF'
     </script>
 </body>
 </html>
-EOF
