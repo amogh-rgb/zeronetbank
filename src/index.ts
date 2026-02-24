@@ -26,7 +26,7 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 // Health check
 app.get('/health', (_req: Request, res: Response) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ status: 'UP', timestamp: new Date().toISOString() });
 });
 
 // API routes
@@ -39,6 +39,9 @@ app.use('/api/admin', AdminRoutes);
 
 // User routes
 app.use('/api/users', UserRoutes);
+
+// Wallet routes (alias for user sync)
+app.use('/api/wallet', UserRoutes);
 
 // OTP routes
 app.use('/api/otp', OTPRoutes);

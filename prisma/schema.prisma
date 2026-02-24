@@ -15,27 +15,30 @@ model User {
   displayName String?
   publicKey   String
   balance     Decimal  @default(1000) @db.Decimal(20, 8)
+  trustScore  Int      @default(100)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  transactions Transaction[] @relation("UserTransactions")
+  // Transaction relationships
+  sentTransactions     Transaction[] @relation("SenderTransactions")
+  receivedTransactions Transaction[] @relation("ReceiverTransactions")
 
   @@map("users")
 }
 
 model Transaction {
   id          String   @id @default(cuid())
-  from        String
-  to          String
+  senderId    String
+  receiverId  String?
   amount      Decimal  @db.Decimal(20, 8)
-  type        String
-  status      String   @default("PENDING")
-  signature   String?
-  description String?
   timestamp   DateTime @default(now())
+  status      String   @default("CONFIRMED")
+  signature   String
+  type        String?  // 'sent' or 'received'
 
-  user   User   @relation("UserTransactions", fields: [userId], references: [id])
-  userId String
+  // Relations
+  sender   User @relation("SenderTransactions", fields: [senderId], references: [id])
+  receiver User? @relation("ReceiverTransactions", fields: [receiverId], references: [id])
 
   @@map("transactions")
 }

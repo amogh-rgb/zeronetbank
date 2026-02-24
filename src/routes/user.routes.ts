@@ -6,6 +6,204 @@ import logger from '../utils/logger';
 const router = express.Router();
 const prisma = new PrismaClient();
 
+// Wallet sync endpoint - critical for app functionality
+router.post('/sync', async (req: Request, res: Response) => {
+  try {
+    const { phone, publicKey, transactions = [] } = req.body;
+
+    if (!phone || !publicKey) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone and publicKey are required'
+      });
+    }
+
+    // Find or create wallet
+    let wallet = await prisma.user.findUnique({
+      where: { phone }
+    });
+
+    if (!wallet) {
+      // Auto-register new wallet
+      wallet = await prisma.user.create({
+        data: {
+          phone,
+          email: `${phone}@zeronetpay.local`, // Temporary email for wallet
+          password: '', // No password for wallet users
+          displayName: `Wallet ${phone}`,
+          balance: 0,
+          publicKey,
+          trustScore: 100
+        }
+      });
+      logger.info(`[SYNC] Auto-registered wallet for ${phone}`);
+    }
+
+    // Process transactions
+    const processedIds: string[] = [];
+    const transactionRecords: any[] = [];
+
+    for (const tx of transactions) {
+      try {
+        // Verify transaction signature (basic check)
+        if (!tx.id || !tx.sender || !tx.receiver || !tx.amount || !tx.timestamp || !tx.signature) {
+          logger.warn(`[SYNC] Invalid transaction format: ${JSON.stringify(tx)}`);
+          continue;
+        }
+
+        // Check if transaction already processed
+        const existingTx = await prisma.transaction.findUnique({
+          where: { id: tx.id }
+        });
+
+        if (existingTx) {
+          processedIds.push(tx.id);
+          continue;
+        }
+
+        // Find sender and receiver
+        const sender = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { phone: tx.sender },
+              { publicKey: tx.sender }
+            ]
+          }
+        });
+
+        const receiver = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { phone: tx.receiver },
+              { publicKey: tx.receiver }
+            ]
+          }
+        });
+
+        if (!sender) {
+          logger.warn(`[SYNC] Sender not found: ${tx.sender}`);
+          continue;
+        }
+
+        // Check sender balance
+        if (sender.balance < tx.amount) {
+          logger.warn(`[SYNC] Insufficient balance for ${tx.sender}`);
+          continue;
+        }
+
+        // Process transaction
+        await prisma.$transaction(async (txClient) => {
+          // Deduct from sender
+          await txClient.user.update({
+            where: { id: sender.id },
+            data: { balance: { decrement: tx.amount } }
+          });
+
+          // Add to receiver if exists
+          if (receiver) {
+            await txClient.user.update({
+              where: { id: receiver.id },
+              data: { balance: { increment: tx.amount } }
+            });
+          }
+
+          // Create transaction record
+          await txClient.transaction.create({
+            data: {
+              id: tx.id,
+              senderId: sender.id,
+              receiverId: receiver?.id || null,
+              amount: tx.amount,
+              timestamp: new Date(tx.timestamp),
+              status: 'CONFIRMED',
+              signature: tx.signature
+            }
+          });
+        });
+
+        processedIds.push(tx.id);
+        transactionRecords.push({
+          id: tx.id,
+          sender: tx.sender,
+          receiver: tx.receiver,
+          amount: tx.amount,
+          timestamp: tx.timestamp,
+          status: 'CONFIRMED'
+        });
+
+        logger.info(`[SYNC] Processed transaction ${tx.id}`);
+
+      } catch (txError) {
+        logger.error(`[SYNC] Failed to process transaction ${tx.id}:`, txError);
+        continue;
+      }
+    }
+
+    // Get updated wallet data
+    const updatedWallet = await prisma.user.findUnique({
+      where: { phone },
+      include: {
+        sentTransactions: {
+          orderBy: { timestamp: 'desc' },
+          take: 50
+        },
+        receivedTransactions: {
+          orderBy: { timestamp: 'desc' },
+          take: 50
+        }
+      }
+    });
+
+    if (!updatedWallet) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to fetch updated wallet'
+      });
+    }
+
+    // Format transactions for response
+    const allTransactions = [
+      ...updatedWallet.sentTransactions.map(tx => ({
+        id: tx.id,
+        sender: tx.senderId,
+        receiver: tx.receiverId,
+        amount: tx.amount,
+        timestamp: tx.timestamp.toISOString(),
+        status: tx.status,
+        type: 'sent'
+      })),
+      ...updatedWallet.receivedTransactions.map(tx => ({
+        id: tx.id,
+        sender: tx.senderId,
+        receiver: tx.receiverId,
+        amount: tx.amount,
+        timestamp: tx.timestamp.toISOString(),
+        status: tx.status,
+        type: 'received'
+      }))
+    ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    logger.info(`[SYNC] Sync completed for ${phone}: ${processedIds.length} processed`);
+
+    return res.json({
+      success: true,
+      balance: updatedWallet.balance,
+      transactions: allTransactions,
+      processedIds: processedIds,
+      trustScore: updatedWallet.trustScore,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    logger.error('[SYNC] Sync error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Sync failed',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Register new user
 router.post('/register', async (req: Request, res: Response) => {
   try {

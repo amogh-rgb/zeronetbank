@@ -117,7 +117,7 @@ router.post('/verify-otp', async (req: Request, res: Response) => {
       });
     }
 
-    if (stored.otp !== otp) {
+    if (String(stored.otp).trim() !== String(otp).trim()) {
       return res.status(400).json({
         success: false,
         message: 'Invalid OTP',

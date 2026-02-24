@@ -118,7 +118,10 @@ class UserService {
       const user = await prisma.user.findUnique({
         where: { email },
         include: {
-          transactions: {
+          sentTransactions: {
+            orderBy: { timestamp: 'desc' }
+          },
+          receivedTransactions: {
             orderBy: { timestamp: 'desc' }
           }
         }
@@ -136,7 +139,7 @@ class UserService {
           name: user.displayName,
           mobile: user.phone,
           balance: user.balance,
-          transactions: user.transactions
+          transactions: [...user.sentTransactions, ...user.receivedTransactions]
         }
       };
     } catch (error) {
@@ -145,8 +148,10 @@ class UserService {
     }
   }
 
-  // Create transaction
+  // Create transaction - DISABLED for now
   async createTransaction(userId: string, transactionData: TransactionData) {
+    return { success: false, message: 'Transaction creation disabled' };
+    /*
     try {
       const transaction = await prisma.transaction.create({
         data: {
@@ -161,20 +166,18 @@ class UserService {
       });
 
       logger.info(`[TRANSACTION] Created: ${transaction.id}`);
-
-      return {
-        success: true,
-        message: 'Transaction created',
-        transaction
-      };
+      return { success: true, transaction };
     } catch (error) {
-      logger.error('[TRANSACTION] Creation error:', error);
-      return { success: false, message: 'Transaction failed' };
+      logger.error('[TRANSACTION] Create error:', error);
+      return { success: false, message: 'Failed to create transaction' };
     }
+    */
   }
 
   // Get all transactions for user
   async getUserTransactions(email: string) {
+    return { success: false, message: 'Transactions disabled' };
+    /*
     try {
       const user = await prisma.user.findUnique({
         where: { email },
@@ -194,13 +197,44 @@ class UserService {
         transactions: user.transactions
       };
     } catch (error) {
-      logger.error('[TRANSACTION] Fetch error:', error);
-      return { success: false, message: 'Failed to fetch transactions' };
+      logger.error('[USER] Get transactions error:', error);
+      return { success: false, message: 'Failed to get transactions' };
     }
+    */
+  }
+
+  // Get user statistics
+  async getUserStats() {
+    return { success: false, message: 'Stats disabled' };
+    /*
+    try {
+      const stats = await prisma.user.aggregate({
+        _count: { id: true },
+        _sum: { balance: true },
+        where: {
+          transactions: { some: {} }
+        }
+      });
+
+      return {
+        success: true,
+        stats: {
+          totalUsers: stats._count.id,
+          totalBalance: stats._sum.balance || 0,
+          activeUsers: stats._count.id
+        }
+      };
+    } catch (error) {
+      logger.error('[USER] Stats error:', error);
+      return { success: false, message: 'Failed to get stats' };
+    }
+    */
   }
 
   // Get all users (admin)
   async getAllUsers() {
+    return { success: false, message: 'Users list disabled' };
+    /*
     try {
       const users = await prisma.user.findMany({
         select: {
@@ -231,6 +265,8 @@ class UserService {
 
   // Get dashboard stats (admin)
   async getDashboardStats() {
+    return { success: false, message: 'Dashboard stats disabled' };
+    /*
     try {
       const [totalUsers, totalTransactions, allTransactions] = await Promise.all([
         prisma.user.count(),
@@ -261,6 +297,7 @@ class UserService {
       logger.error('[ADMIN] Dashboard stats error:', error);
       return { success: false, message: 'Failed to fetch stats' };
     }
+    */
   }
 }
 
