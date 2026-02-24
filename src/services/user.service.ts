@@ -103,7 +103,8 @@ class UserService {
           email: user.email,
           name: user.displayName,
           mobile: user.phone,
-          balance: user.balance
+          balance: user.balance,
+          trustScore: user.trustScore
         }
       };
     } catch (error) {
@@ -169,12 +170,12 @@ class UserService {
       }
 
       const transactions = [
-        ...user.sentTransactions.map(tx => ({
+        ...user.sentTransactions.map((tx: any) => ({
           ...tx,
           type: 'sent',
           otherParty: tx.receiver
         })),
-        ...user.receivedTransactions.map(tx => ({
+        ...user.receivedTransactions.map((tx: any) => ({
           ...tx,
           type: 'received',
           otherParty: tx.sender
@@ -211,10 +212,7 @@ class UserService {
 
       const activeUsers = await prisma.user.count({
         where: {
-          OR: [
-            { sentTransactions: { some: {} } },
-            { receivedTransactions: { some: {} } }
-          ]
+          sentTransactions: { some: {} }
         }
       });
 
