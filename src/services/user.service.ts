@@ -233,8 +233,6 @@ class UserService {
 
   // Get all users (admin)
   async getAllUsers() {
-    return { success: false, message: 'Users list disabled' };
-    /*
     try {
       const users = await prisma.user.findMany({
         select: {
@@ -243,8 +241,12 @@ class UserService {
           displayName: true,
           phone: true,
           balance: true,
+          trustScore: true,
           createdAt: true,
-          transactions: {
+          sentTransactions: {
+            select: { id: true }
+          },
+          receivedTransactions: {
             select: { id: true }
           }
         }
@@ -253,8 +255,14 @@ class UserService {
       return {
         success: true,
         users: users.map(user => ({
-          ...user,
-          transactionCount: user.transactions.length
+          id: user.id,
+          email: user.email,
+          displayName: user.displayName,
+          phone: user.phone,
+          balance: user.balance,
+          trustScore: user.trustScore,
+          createdAt: user.createdAt,
+          transactionCount: user.sentTransactions.length + user.receivedTransactions.length
         }))
       };
     } catch (error) {
@@ -265,8 +273,6 @@ class UserService {
 
   // Get dashboard stats (admin)
   async getDashboardStats() {
-    return { success: false, message: 'Dashboard stats disabled' };
-    /*
     try {
       const [totalUsers, totalTransactions, allTransactions] = await Promise.all([
         prisma.user.count(),
@@ -280,7 +286,10 @@ class UserService {
 
       const activeUsers = await prisma.user.count({
         where: {
-          transactions: { some: {} }
+          OR: [
+            { sentTransactions: { some: {} } },
+            { receivedTransactions: { some: {} } }
+          ]
         }
       });
 
@@ -297,7 +306,6 @@ class UserService {
       logger.error('[ADMIN] Dashboard stats error:', error);
       return { success: false, message: 'Failed to fetch stats' };
     }
-    */
   }
 }
 

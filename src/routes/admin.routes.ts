@@ -8,16 +8,7 @@ const router = express.Router();
 router.get('/dashboard', async (_req: Request, res: Response) => {
   try {
     logger.info('[ADMIN] Dashboard accessed');
-    // Return dummy stats for now
-    const result = {
-      success: true,
-      stats: {
-        totalUsers: 0,
-        totalTransactions: 0,
-        totalBalance: '0.00',
-        activeUsers: 0
-      }
-    };
+    const result = await UserService.getDashboardStats();
     return res.json(result);
   } catch (error) {
     logger.error('[ADMIN] Dashboard error:', error);
@@ -29,11 +20,7 @@ router.get('/dashboard', async (_req: Request, res: Response) => {
 router.get('/users', async (_req: Request, res: Response) => {
   try {
     logger.info('[ADMIN] Users list accessed');
-    // Return dummy users for now
-    const result = {
-      success: true,
-      users: []
-    };
+    const result = await UserService.getAllUsers();
     return res.json(result);
   } catch (error) {
     logger.error('[ADMIN] Users error:', error);
