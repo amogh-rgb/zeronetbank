@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         try {
-            const res = await fetch(`${API_URL}/api/users/register`, {
+            const res = await fetch(`${API_URL}/api/users/register-web`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

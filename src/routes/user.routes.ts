@@ -204,7 +204,41 @@ router.post('/sync', async (req: Request, res: Response) => {
   }
 });
 
-// Register new user
+// Register new user (web interface - no OTP required)
+router.post('/register-web', async (req: Request, res: Response) => {
+  try {
+    const { email, password, name, mobile } = req.body;
+
+    if (!email || !password || !name || !mobile) {
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required: email, password, name, mobile'
+      });
+    }
+
+    const result = await UserService.registerUser({
+      email,
+      password,
+      name,
+      mobile
+    });
+
+    if (result.success) {
+      logger.info(`[API] User registered via web: ${email}`);
+      return res.status(201).json(result);
+    } else {
+      return res.status(400).json(result);
+    }
+  } catch (error) {
+    logger.error('[API] Web registration error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Registration failed'
+    });
+  }
+});
+
+// Register new user (app interface - OTP required)
 router.post('/register', async (req: Request, res: Response) => {
   try {
     const { email, password, name, mobile, otp, otpId } = req.body;
