@@ -386,19 +386,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-                        <td>${user.transactionCount}</td>
-                        <td>${new Date(user.createdAt).toLocaleDateString()}</td>
-                    `;
-                    tbody.appendChild(row);
-                });
-            }
-        } catch (error) {
-            console.error('Error loading users:', error);
-        }
-    }
-    
     function logout() {
         document.getElementById('dashboard').style.display = 'none';
         document.getElementById('loginContainer').style.display = 'flex';
+
+        // Destroy charts
+        if (transactionChart) transactionChart.destroy();
+        if (userGrowthChart) userGrowthChart.destroy();
     }
+
+    // Initialize loading complete
+    setTimeout(() => {
+        loadingOverlay.style.display = 'none';
+    }, 1000);
 });
