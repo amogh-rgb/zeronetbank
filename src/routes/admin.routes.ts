@@ -90,7 +90,7 @@ router.get('/user-transactions/:userId', async (req: Request, res: Response) => 
   try {
     const { userId } = req.params;
     logger.info(`[ADMIN] Getting transaction history for user ${userId}`);
-    const result = await UserService.getUserTransactions(userId);
+    const result = await UserService.getUserTransactionsById(userId);
     return res.json(result);
   } catch (error) {
     logger.error('[ADMIN] User transactions error:', error);

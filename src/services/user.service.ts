@@ -398,7 +398,7 @@ class UserService {
   }
 
   // Get user transactions (admin)
-  async getUserTransactions(userId: string) {
+  async getUserTransactionsById(userId: string) {
     try {
       const user = await prisma.user.findUnique({
         where: { id: userId },
