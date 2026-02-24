@@ -117,13 +117,14 @@ class UserService {
     try {
       const user = await prisma.user.findUnique({
         where: { email },
-        include: {
-          sentTransactions: {
-            orderBy: { timestamp: 'desc' }
-          },
-          receivedTransactions: {
-            orderBy: { timestamp: 'desc' }
-          }
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          phone: true,
+          balance: true,
+          trustScore: true,
+          createdAt: true
         }
       });
 
@@ -131,58 +132,33 @@ class UserService {
         return { success: false, message: 'User not found' };
       }
 
-      return {
-        success: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.displayName,
-          mobile: user.phone,
-          balance: user.balance,
-          transactions: [...user.sentTransactions, ...user.receivedTransactions]
-        }
-      };
+      return { success: true, user };
     } catch (error) {
       logger.error('[USER] Get user error:', error);
       return { success: false, message: 'Failed to get user' };
     }
   }
 
-  // Create transaction - DISABLED for now
-  async createTransaction(userId: string, transactionData: TransactionData) {
-    return { success: false, message: 'Transaction creation disabled' };
-    /*
-    try {
-      const transaction = await prisma.transaction.create({
-        data: {
-          from: transactionData.from,
-          to: transactionData.to,
-          amount: transactionData.amount,
-          type: transactionData.type,
-          description: transactionData.description || '',
-          status: 'COMPLETED',
-          userId: userId
-        }
-      });
-
-      logger.info(`[TRANSACTION] Created: ${transaction.id}`);
-      return { success: true, transaction };
-    } catch (error) {
-      logger.error('[TRANSACTION] Create error:', error);
-      return { success: false, message: 'Failed to create transaction' };
-    }
-    */
-  }
-
-  // Get all transactions for user
+  // Get user transactions
   async getUserTransactions(email: string) {
-    return { success: false, message: 'Transactions disabled' };
-    /*
     try {
       const user = await prisma.user.findUnique({
         where: { email },
         include: {
-          transactions: {
+          sentTransactions: {
+            include: {
+              receiver: {
+                select: { id: true, email: true, displayName: true }
+              }
+            },
+            orderBy: { timestamp: 'desc' }
+          },
+          receivedTransactions: {
+            include: {
+              sender: {
+                select: { id: true, email: true, displayName: true }
+              }
+            },
             orderBy: { timestamp: 'desc' }
           }
         }
@@ -192,43 +168,69 @@ class UserService {
         return { success: false, message: 'User not found' };
       }
 
+      const transactions = [
+        ...user.sentTransactions.map(tx => ({
+          ...tx,
+          type: 'sent',
+          otherParty: tx.receiver
+        })),
+        ...user.receivedTransactions.map(tx => ({
+          ...tx,
+          type: 'received',
+          otherParty: tx.sender
+        }))
+      ].sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
       return {
         success: true,
-        transactions: user.transactions
+        transactions: transactions
       };
     } catch (error) {
       logger.error('[USER] Get transactions error:', error);
       return { success: false, message: 'Failed to get transactions' };
     }
-    */
   }
 
-  // Get user statistics
-  async getUserStats() {
-    return { success: false, message: 'Stats disabled' };
-    /*
+  // Create transaction
+  async createTransaction(data: TransactionData) {
+    return { success: false, message: 'Transaction creation disabled' };
+  }
+
+  // Get dashboard stats (admin)
+  async getDashboardStats() {
     try {
-      const stats = await prisma.user.aggregate({
-        _count: { id: true },
-        _sum: { balance: true },
+      const [totalUsers, totalTransactions, allTransactions] = await Promise.all([
+        prisma.user.count(),
+        prisma.transaction.count(),
+        prisma.transaction.findMany()
+      ]);
+
+      const totalBalance = allTransactions.reduce((sum, t) => {
+        return sum + Number(t.amount);
+      }, 0);
+
+      const activeUsers = await prisma.user.count({
         where: {
-          transactions: { some: {} }
+          OR: [
+            { sentTransactions: { some: {} } },
+            { receivedTransactions: { some: {} } }
+          ]
         }
       });
 
       return {
         success: true,
         stats: {
-          totalUsers: stats._count.id,
-          totalBalance: stats._sum.balance || 0,
-          activeUsers: stats._count.id
+          totalUsers,
+          totalTransactions,
+          totalBalance: totalBalance.toFixed(2),
+          activeUsers
         }
       };
     } catch (error) {
-      logger.error('[USER] Stats error:', error);
-      return { success: false, message: 'Failed to get stats' };
+      logger.error('[ADMIN] Dashboard stats error:', error);
+      return { success: false, message: 'Failed to fetch stats' };
     }
-    */
   }
 
   // Get all users (admin)
@@ -271,41 +273,6 @@ class UserService {
     }
   }
 
-  // Get dashboard stats (admin)
-  async getDashboardStats() {
-    try {
-      const [totalUsers, totalTransactions, allTransactions] = await Promise.all([
-        prisma.user.count(),
-        prisma.transaction.count(),
-        prisma.transaction.findMany()
-      ]);
-
-      const totalBalance = allTransactions.reduce((sum, t) => {
-        return sum + Number(t.amount);
-      }, 0);
-
-      const activeUsers = await prisma.user.count({
-        where: {
-          OR: [
-            { sentTransactions: { some: {} } },
-            { receivedTransactions: { some: {} } }
-          ]
-        }
-      });
-
-      return {
-        success: true,
-        stats: {
-          totalUsers,
-          totalTransactions,
-          totalBalance: totalBalance.toFixed(2),
-          activeUsers
-        }
-      };
-    } catch (error) {
-      logger.error('[ADMIN] Dashboard stats error:', error);
-      return { success: false, message: 'Failed to fetch stats' };
-    }
   // Add money to user account (admin)
   async addMoneyToUser(userId: string, amount: number, reason: string = 'Admin credit') {
     try {
@@ -462,17 +429,17 @@ class UserService {
       }
 
       const transactions = [
-        ...user.sentTransactions.map(tx => ({
+        ...user.sentTransactions.map((tx: any) => ({
           ...tx,
           type: 'sent',
           otherParty: tx.receiver
         })),
-        ...user.receivedTransactions.map(tx => ({
+        ...user.receivedTransactions.map((tx: any) => ({
           ...tx,
           type: 'received',
           otherParty: tx.sender
         }))
-      ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      ].sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
       return {
         success: true,
@@ -483,3 +450,6 @@ class UserService {
       return { success: false, message: 'Failed to get user transactions' };
     }
   }
+}
+
+export default new UserService();
