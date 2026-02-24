@@ -207,17 +207,50 @@ router.post('/sync', async (req: Request, res: Response) => {
 // Register new user
 router.post('/register', async (req: Request, res: Response) => {
   try {
-    const { email, password, name, mobile, otp } = req.body;
+    const { email, password, name, mobile, otp, otpId } = req.body;
 
-    if (!email || !password || !name || !mobile || !otp) {
+    if (!email || !password || !name || !mobile || !otp || !otpId) {
       return res.status(400).json({
         success: false,
-        message: 'All fields are required: email, password, name, mobile, otp'
+        message: 'All fields are required: email, password, name, mobile, otp, otpId'
       });
     }
 
     // Verify OTP first
-    // Note: OTP verification would be done here
+    const otpStore = (global as any).otpStore;
+    if (!otpStore) {
+      return res.status(500).json({
+        success: false,
+        message: 'OTP service not available'
+      });
+    }
+
+    const stored = otpStore.get(otpId);
+
+    if (!stored) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired OTP'
+      });
+    }
+
+    if (String(stored.otp).trim() !== String(otp).trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid OTP'
+      });
+    }
+
+    if (Date.now() > stored.expires) {
+      otpStore.delete(otpId);
+      return res.status(400).json({
+        success: false,
+        message: 'OTP has expired'
+      });
+    }
+
+    // OTP verified, clean it up
+    otpStore.delete(otpId);
 
     const result = await UserService.registerUser({
       email,

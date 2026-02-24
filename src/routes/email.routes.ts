@@ -8,6 +8,9 @@ const router = express.Router();
 // In-memory OTP storage (use Redis in production)
 const otpStore = new Map<string, { otp: string; expires: number; type: string }>();
 
+// Make otpStore globally accessible
+(global as any).otpStore = otpStore;
+
 // Create Gmail transporter using app password
 const transporter = nodemailer.createTransport({
   service: 'gmail',
