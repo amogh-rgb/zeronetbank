@@ -306,7 +306,180 @@ class UserService {
       logger.error('[ADMIN] Dashboard stats error:', error);
       return { success: false, message: 'Failed to fetch stats' };
     }
-  }
-}
+  // Add money to user account (admin)
+  async addMoneyToUser(userId: string, amount: number, reason: string = 'Admin credit') {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId }
+      });
 
-export default new UserService();
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
+      // Update user balance
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: { balance: { increment: amount } }
+      });
+
+      // Create transaction record
+      await prisma.transaction.create({
+        data: {
+          senderId: userId, // Self-transaction for admin credit
+          receiverId: userId,
+          amount: amount,
+          status: 'CONFIRMED',
+          signature: `admin-credit-${Date.now()}`,
+          type: 'CREDIT'
+        }
+      });
+
+      logger.info(`[ADMIN] Added $${amount} to user ${userId} (${user.email}), reason: ${reason}`);
+      return {
+        success: true,
+        message: `Successfully added $${amount} to user account`,
+        user: {
+          id: updatedUser.id,
+          email: updatedUser.email,
+          balance: updatedUser.balance
+        }
+      };
+    } catch (error) {
+      logger.error('[ADMIN] Add money error:', error);
+      return { success: false, message: 'Failed to add money to user account' };
+    }
+  }
+
+  // Remove money from user account (admin)
+  async removeMoneyFromUser(userId: string, amount: number, reason: string = 'Admin debit') {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId }
+      });
+
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
+      if (Number(user.balance) < amount) {
+        return { success: false, message: 'Insufficient balance' };
+      }
+
+      // Update user balance
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: { balance: { decrement: amount } }
+      });
+
+      // Create transaction record
+      await prisma.transaction.create({
+        data: {
+          senderId: userId, // Self-transaction for admin debit
+          receiverId: userId,
+          amount: amount,
+          status: 'CONFIRMED',
+          signature: `admin-debit-${Date.now()}`,
+          type: 'DEBIT'
+        }
+      });
+
+      logger.info(`[ADMIN] Removed $${amount} from user ${userId} (${user.email}), reason: ${reason}`);
+      return {
+        success: true,
+        message: `Successfully removed $${amount} from user account`,
+        user: {
+          id: updatedUser.id,
+          email: updatedUser.email,
+          balance: updatedUser.balance
+        }
+      };
+    } catch (error) {
+      logger.error('[ADMIN] Remove money error:', error);
+      return { success: false, message: 'Failed to remove money from user account' };
+    }
+  }
+
+  // Get all transactions (admin)
+  async getAllTransactions() {
+    try {
+      const transactions = await prisma.transaction.findMany({
+        include: {
+          sender: {
+            select: { id: true, email: true, displayName: true }
+          },
+          receiver: {
+            select: { id: true, email: true, displayName: true }
+          }
+        },
+        orderBy: { timestamp: 'desc' },
+        take: 100 // Limit to last 100 transactions
+      });
+
+      return transactions.map(tx => ({
+        id: tx.id,
+        sender: tx.sender,
+        receiver: tx.receiver,
+        amount: tx.amount,
+        status: tx.status,
+        timestamp: tx.timestamp,
+        signature: tx.signature,
+        type: tx.type
+      }));
+    } catch (error) {
+      logger.error('[ADMIN] Get all transactions error:', error);
+      return [];
+    }
+  }
+
+  // Get user transactions (admin)
+  async getUserTransactions(userId: string) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          sentTransactions: {
+            include: {
+              receiver: {
+                select: { id: true, email: true, displayName: true }
+              }
+            },
+            orderBy: { timestamp: 'desc' }
+          },
+          receivedTransactions: {
+            include: {
+              sender: {
+                select: { id: true, email: true, displayName: true }
+              }
+            },
+            orderBy: { timestamp: 'desc' }
+          }
+        }
+      });
+
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
+      const transactions = [
+        ...user.sentTransactions.map(tx => ({
+          ...tx,
+          type: 'sent',
+          otherParty: tx.receiver
+        })),
+        ...user.receivedTransactions.map(tx => ({
+          ...tx,
+          type: 'received',
+          otherParty: tx.sender
+        }))
+      ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      return {
+        success: true,
+        transactions: transactions
+      };
+    } catch (error) {
+      logger.error('[ADMIN] Get user transactions error:', error);
+      return { success: false, message: 'Failed to get user transactions' };
+    }
+  }
