@@ -200,20 +200,22 @@ class UserService {
   // Get dashboard stats (admin)
   async getDashboardStats() {
     try {
-      const [totalUsers, totalTransactions, allTransactions] = await Promise.all([
-        prisma.user.count(),
-        prisma.transaction.count(),
-        prisma.transaction.findMany()
-      ]);
+      const totalUsers = await prisma.user.count();
+      const totalTransactions = await prisma.transaction.count();
+
+      // Get total balance from all transactions
+      const allTransactions = await prisma.transaction.findMany({
+        select: { amount: true }
+      });
 
       const totalBalance = allTransactions.reduce((sum, t) => {
         return sum + Number(t.amount);
       }, 0);
 
-      const activeUsers = await prisma.user.count({
-        where: {
-          sentTransactions: { some: {} }
-        }
+      // Count active users (users who have sent transactions)
+      const activeUsers = await prisma.transaction.findMany({
+        select: { senderId: true },
+        distinct: ['senderId']
       });
 
       return {
@@ -222,7 +224,7 @@ class UserService {
           totalUsers,
           totalTransactions,
           totalBalance: totalBalance.toFixed(2),
-          activeUsers
+          activeUsers: activeUsers.length
         }
       };
     } catch (error) {
@@ -241,29 +243,40 @@ class UserService {
           displayName: true,
           phone: true,
           balance: true,
-          trustScore: true,
-          createdAt: true,
-          sentTransactions: {
-            select: { id: true }
-          },
-          receivedTransactions: {
-            select: { id: true }
-          }
+          createdAt: true
         }
       });
 
+      // Get transaction counts separately
+      const userTransactionCounts = await Promise.all(
+        users.map(async (user) => {
+          const sentCount = await prisma.transaction.count({
+            where: { senderId: user.id }
+          });
+          const receivedCount = await prisma.transaction.count({
+            where: { receiverId: user.id }
+          });
+          return {
+            userId: user.id,
+            transactionCount: sentCount + receivedCount
+          };
+        })
+      );
+
       return {
         success: true,
-        users: users.map(user => ({
-          id: user.id,
-          email: user.email,
-          displayName: user.displayName,
-          phone: user.phone,
-          balance: user.balance,
-          trustScore: user.trustScore,
-          createdAt: user.createdAt,
-          transactionCount: user.sentTransactions.length + user.receivedTransactions.length
-        }))
+        users: users.map(user => {
+          const transactionData = userTransactionCounts.find(tc => tc.userId === user.id);
+          return {
+            id: user.id,
+            email: user.email,
+            displayName: user.displayName,
+            phone: user.phone,
+            balance: user.balance,
+            createdAt: user.createdAt,
+            transactionCount: transactionData?.transactionCount || 0
+          };
+        })
       };
     } catch (error) {
       logger.error('[ADMIN] Get all users error:', error);
