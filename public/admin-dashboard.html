@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZeroNetPay Admin Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8fafc;
+            color: #334155;
+        }
+
+        /* Auth Screen */
+        .auth-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .auth-box {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .auth-box h2 {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            color: #1e293b;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: #6366f1;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn:hover { background: #5855eb; }
+        .btn:disabled { background: #9ca3af; cursor: not-allowed; }
+
+        .alert {
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        .alert.error { background: #fee2e2; color: #dc2626; }
+        .alert.success { background: #d1fae5; color: #059669; }
+
+        /* Dashboard */
+        .dashboard {
+            display: none;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: white;
+            padding: 1rem 2rem;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: #1e293b;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 73px;
+            width: 250px;
+            height: calc(100vh - 73px);
+            background: white;
+            border-right: 1px solid #e2e8f0;
+            padding: 1rem 0;
+        }
+
+        .sidebar-item {
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .sidebar-item:hover,
+        .sidebar-item.active {
+            background: #f8fafc;
+            border-left-color: #6366f1;
+        }
+
+        .main-content {
+            margin-left: 250px;
+            padding: 2rem;
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card h3 {
+            color: #64748b;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        /* Tables */
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .action-btn {
+            padding: 0.375rem 0.75rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            margin-right: 0.5rem;
+        }
+
+        .btn-primary { background: #6366f1; color: white; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-danger { background: #ef4444; color: white; }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+        }
+
+        .modal h3 {
+            margin-bottom: 1rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #64748b;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                display: none;
+            }
+            .main-content {
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Authentication Screen -->
+    <div id="authContainer" class="auth-container">
+        <div class="auth-box">
+            <h2><i class="fas fa-shield-alt"></i> Admin Login</h2>
+            <div id="authAlert" class="alert"></div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" required>
+                </div>
+                <button type="submit" class="btn" id="loginBtn">Login</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" class="dashboard">
+        <header class="header">
+            <h1><i class="fas fa-chart-line"></i> ZeroNetPay Admin Dashboard</h1>
+            <div class="user-info">
+                <span id="adminName">Loading...</span>
+                <button class="btn" onclick="logout()">Logout</button>
+            </div>
+        </header>
+
+        <aside class="sidebar">
+            <div class="sidebar-item active" onclick="showSection('overview')">
+                <i class="fas fa-tachometer-alt"></i> Overview
+            </div>
+            <div class="sidebar-item" onclick="showSection('users')">
+                <i class="fas fa-users"></i> Users
+            </div>
+            <div class="sidebar-item" onclick="showSection('funds')">
+                <i class="fas fa-money-bill-wave"></i> Fund Management
+            </div>
+            <div class="sidebar-item" onclick="showSection('logs')">
+                <i class="fas fa-history"></i> Admin Logs
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <!-- Overview Section -->
+            <div id="overviewSection" class="section">
+                <h2>Dashboard Overview</h2>
+                <div id="statsGrid" class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Total Users</h3>
+                        <div class="value" id="totalUsers">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Total Transactions</h3>
+                        <div class="value" id="totalTransactions">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Total Balance</h3>
+                        <div class="value" id="totalBalance">$-</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Today's Transactions</h3>
+                        <div class="value" id="todayTransactions">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users Section -->
+            <div id="usersSection" class="section" style="display: none;">
+                <h2>User Management</h2>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Wallet ID</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Balance</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTable">
+                            <tr><td colspan="5" class="loading">Loading users...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Fund Management Section -->
+            <div id="fundsSection" class="section" style="display: none;">
+                <h2>Fund Management</h2>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                    <div class="stat-card">
+                        <h3>Add Funds</h3>
+                        <form id="addFundsForm">
+                            <div class="form-group">
+                                <label>Wallet ID</label>
+                                <input type="text" id="addWalletId" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Amount</label>
+                                <input type="number" id="addAmount" step="0.01" min="0.01" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Reason</label>
+                                <input type="text" id="addReason" placeholder="Optional">
+                            </div>
+                            <button type="submit" class="btn">Add Funds</button>
+                        </form>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Remove Funds</h3>
+                        <form id="removeFundsForm">
+                            <div class="form-group">
+                                <label>Wallet ID</label>
+                                <input type="text" id="removeWalletId" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Amount</label>
+                                <input type="number" id="removeAmount" step="0.01" min="0.01" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Reason</label>
+                                <input type="text" id="removeReason" placeholder="Optional">
+                            </div>
+                            <button type="submit" class="btn">Remove Funds</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin Logs Section -->
+            <div id="logsSection" class="section" style="display: none;">
+                <h2>Admin Activity Logs</h2>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Admin</th>
+                                <th>Action</th>
+                                <th>Target</th>
+                                <th>Amount</th>
+                                <th>Timestamp</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logsTable">
+                            <tr><td colspan="5" class="loading">Loading logs...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal for user details -->
+    <div id="userModal" class="modal">
+        <div class="modal-content">
+            <h3>User Details</h3>
+            <div id="userDetails">Loading...</div>
+            <button class="btn" onclick="closeModal()">Close</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script>
+        const API_BASE = window.location.origin;
+        let authToken = localStorage.getItem('adminToken');
+        let socket;
+        let currentSection = 'overview';
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', () => {
+            if (authToken) {
+                showDashboard();
+            } else {
+                showAuth();
+            }
+
+            // Login form
+            document.getElementById('loginForm').addEventListener('submit', handleLogin);
+
+            // Fund management forms
+            document.getElementById('addFundsForm').addEventListener('submit', handleAddFunds);
+            document.getElementById('removeFundsForm').addEventListener('submit', handleRemoveFunds);
+        });
+
+        // Authentication functions
+        async function handleLogin(e) {
+            e.preventDefault();
+            const loginBtn = document.getElementById('loginBtn');
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Logging in...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    authToken = data.data.token;
+                    localStorage.setItem('adminToken', authToken);
+                    showDashboard();
+                } else {
+                    showAlert('authAlert', data.message, 'error');
+                }
+            } catch (error) {
+                showAlert('authAlert', 'Login failed', 'error');
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Login';
+            }
+        }
+
+        function logout() {
+            authToken = null;
+            localStorage.removeItem('adminToken');
+            if (socket) socket.disconnect();
+            showAuth();
+        }
+
+        // Dashboard functions
+        async function showDashboard() {
+            document.getElementById('authContainer').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+
+            // Initialize Socket.IO
+            socket = io(API_BASE);
+
+            // Load dashboard data
+            await loadDashboardData();
+            await loadUsers();
+            await loadLogs();
+        }
+
+        function showAuth() {
+            document.getElementById('authContainer').style.display = 'flex';
+            document.getElementById('dashboard').style.display = 'none';
+        }
+
+        // API helper
+        async function apiCall(endpoint, options = {}) {
+            const defaultOptions = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+                }
+            };
+
+            const response = await fetch(`${API_BASE}${endpoint}`, { ...defaultOptions, ...options });
+            const data = await response.json();
+
+            if (response.status === 401) {
+                logout();
+                throw new Error('Unauthorized');
+            }
+
+            return data;
+        }
+
+        // Load dashboard data
+        async function loadDashboardData() {
+            try {
+                const data = await apiCall('/api/admin/dashboard');
+                if (data.success) {
+                    document.getElementById('totalUsers').textContent = data.data.totalUsers;
+                    document.getElementById('totalTransactions').textContent = data.data.totalTransactions;
+                    document.getElementById('totalBalance').textContent = '$' + data.data.totalBalance;
+                    document.getElementById('todayTransactions').textContent = data.data.todayTransactions;
+                }
+            } catch (error) {
+                console.error('Failed to load dashboard data:', error);
+            }
+        }
+
+        // Load users
+        async function loadUsers() {
+            try {
+                const data = await apiCall('/api/admin/users');
+                if (data.success) {
+                    const tbody = document.getElementById('usersTable');
+                    tbody.innerHTML = data.data.users.map(user => `
+                        <tr>
+                            <td>${user.walletId}</td>
+                            <td>${user.name}</td>
+                            <td>${user.email}</td>
+                            <td>$${user.balance}</td>
+                            <td>
+                                <button class="action-btn btn-primary" onclick="viewUser('${user.walletId}')">View</button>
+                                <button class="action-btn btn-success" onclick="addFunds('${user.walletId}')">Add</button>
+                                <button class="action-btn btn-danger" onclick="removeFunds('${user.walletId}')">Remove</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Failed to load users:', error);
+            }
+        }
+
+        // Load admin logs
+        async function loadLogs() {
+            try {
+                const data = await apiCall('/api/admin/logs');
+                if (data.success) {
+                    const tbody = document.getElementById('logsTable');
+                    tbody.innerHTML = data.data.logs.map(log => `
+                        <tr>
+                            <td>${log.adminId}</td>
+                            <td>${log.actionType}</td>
+                            <td>${log.targetWallet}</td>
+                            <td>${log.amount ? '$' + log.amount : '-'}</td>
+                            <td>${new Date(log.createdAt).toLocaleString()}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Failed to load logs:', error);
+            }
+        }
+
+        // Fund management
+        async function handleAddFunds(e) {
+            e.preventDefault();
+            const walletId = document.getElementById('addWalletId').value;
+            const amount = document.getElementById('addAmount').value;
+            const reason = document.getElementById('addReason').value;
+
+            try {
+                const data = await apiCall('/api/admin/add-funds', {
+                    method: 'POST',
+                    body: JSON.stringify({ walletId, amount: parseFloat(amount), reason })
+                });
+
+                if (data.success) {
+                    alert('Funds added successfully!');
+                    document.getElementById('addFundsForm').reset();
+                    await loadDashboardData();
+                    await loadUsers();
+                } else {
+                    alert(data.message);
+                }
+            } catch (error) {
+                alert('Failed to add funds');
+            }
+        }
+
+        async function handleRemoveFunds(e) {
+            e.preventDefault();
+            const walletId = document.getElementById('removeWalletId').value;
+            const amount = document.getElementById('removeAmount').value;
+            const reason = document.getElementById('removeReason').value;
+
+            try {
+                const data = await apiCall('/api/admin/remove-funds', {
+                    method: 'POST',
+                    body: JSON.stringify({ walletId, amount: parseFloat(amount), reason })
+                });
+
+                if (data.success) {
+                    alert('Funds removed successfully!');
+                    document.getElementById('removeFundsForm').reset();
+                    await loadDashboardData();
+                    await loadUsers();
+                } else {
+                    alert(data.message);
+                }
+            } catch (error) {
+                alert('Failed to remove funds');
+            }
+        }
+
+        // UI functions
+        function showSection(section) {
+            document.querySelectorAll('.section').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+
+            document.getElementById(section + 'Section').style.display = 'block';
+            event.target.classList.add('active');
+            currentSection = section;
+        }
+
+        function viewUser(walletId) {
+            // Implement user details view
+            alert(`Viewing user: ${walletId}`);
+        }
+
+        function addFunds(walletId) {
+            document.getElementById('addWalletId').value = walletId;
+            showSection('funds');
+        }
+
+        function removeFunds(walletId) {
+            document.getElementById('removeWalletId').value = walletId;
+            showSection('funds');
+        }
+
+        function closeModal() {
+            document.getElementById('userModal').style.display = 'none';
+        }
+
+        function showAlert(elementId, message, type) {
+            const alertEl = document.getElementById(elementId);
+            alertEl.textContent = message;
+            alertEl.className = `alert ${type}`;
+            alertEl.style.display = 'block';
+            setTimeout(() => alertEl.style.display = 'none', 5000);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZeroNetPay Client Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8fafc;
+            color: #334155;
+        }
+
+        /* Auth Screen */
+        .auth-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .auth-box {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .auth-tabs {
+            display: flex;
+            margin-bottom: 1.5rem;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #f1f5f9;
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 0.75rem;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .auth-tab.active {
+            background: #6366f1;
+            color: white;
+        }
+
+        .auth-box h2 {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            color: #1e293b;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: #6366f1;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn:hover { background: #5855eb; }
+        .btn:disabled { background: #9ca3af; cursor: not-allowed; }
+
+        .alert {
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        .alert.error { background: #fee2e2; color: #dc2626; }
+        .alert.success { background: #d1fae5; color: #059669; }
+
+        /* Dashboard */
+        .dashboard {
+            display: none;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: white;
+            padding: 1rem 2rem;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: #1e293b;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 73px;
+            width: 250px;
+            height: calc(100vh - 73px);
+            background: white;
+            border-right: 1px solid #e2e8f0;
+            padding: 1rem 0;
+        }
+
+        .sidebar-item {
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .sidebar-item:hover,
+        .sidebar-item.active {
+            background: #f8fafc;
+            border-left-color: #6366f1;
+        }
+
+        .main-content {
+            margin-left: 250px;
+            padding: 2rem;
+        }
+
+        /* Wallet Summary */
+        .wallet-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .wallet-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .wallet-card h3 {
+            color: #64748b;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .balance {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #10b981;
+            margin-bottom: 0.5rem;
+        }
+
+        .wallet-id {
+            font-family: monospace;
+            background: #f1f5f9;
+            padding: 0.5rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+
+        /* Transaction Filters */
+        .filters {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filters select,
+        .filters input {
+            padding: 0.5rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+        }
+
+        /* Tables */
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .status-success { background: #d1fae5; color: #059669; }
+        .status-pending { background: #fef3c7; color: #d97706; }
+        .status-failed { background: #fee2e2; color: #dc2626; }
+
+        .amount-positive { color: #10b981; font-weight: 600; }
+        .amount-negative { color: #ef4444; font-weight: 600; }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .stat-card .value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .stat-card .label {
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #64748b;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                display: none;
+            }
+            .main-content {
+                margin-left: 0;
+            }
+            .filters {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Authentication Screen -->
+    <div id="authContainer" class="auth-container">
+        <div class="auth-box">
+            <div class="auth-tabs">
+                <button class="auth-tab active" onclick="showAuthTab('login')">Login</button>
+                <button class="auth-tab" onclick="showAuthTab('register')">Register</button>
+            </div>
+
+            <!-- Login Form -->
+            <div id="loginForm">
+                <h2><i class="fas fa-wallet"></i> Client Login</h2>
+                <div id="loginAlert" class="alert"></div>
+                <form onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label for="loginEmail">Email</label>
+                        <input type="email" id="loginEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword">Password</label>
+                        <input type="password" id="loginPassword" required>
+                    </div>
+                    <button type="submit" class="btn" id="loginBtn">Login</button>
+                </form>
+            </div>
+
+            <!-- Register Form -->
+            <div id="registerForm" style="display: none;">
+                <h2><i class="fas fa-user-plus"></i> Client Registration</h2>
+                <div id="registerAlert" class="alert"></div>
+                <form onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label for="regName">Full Name</label>
+                        <input type="text" id="regName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="regEmail">Email</label>
+                        <input type="email" id="regEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="regPassword">Password</label>
+                        <input type="password" id="regPassword" required minlength="8">
+                    </div>
+                    <button type="submit" class="btn" id="registerBtn">Register</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" class="dashboard">
+        <header class="header">
+            <h1><i class="fas fa-wallet"></i> ZeroNetPay Client Dashboard</h1>
+            <div class="user-info">
+                <span id="userName">Loading...</span>
+                <button class="btn" onclick="logout()">Logout</button>
+            </div>
+        </header>
+
+        <aside class="sidebar">
+            <div class="sidebar-item active" onclick="showSection('overview')">
+                <i class="fas fa-home"></i> Overview
+            </div>
+            <div class="sidebar-item" onclick="showSection('transactions')">
+                <i class="fas fa-exchange-alt"></i> Transactions
+            </div>
+            <div class="sidebar-item" onclick="showSection('profile')">
+                <i class="fas fa-user"></i> Profile
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <!-- Overview Section -->
+            <div id="overviewSection" class="section">
+                <h2>Wallet Overview</h2>
+
+                <div class="wallet-summary">
+                    <div class="wallet-card">
+                        <h3>Current Balance</h3>
+                        <div class="balance" id="currentBalance">$0.00</div>
+                        <div class="wallet-id" id="walletId">Loading...</div>
+                    </div>
+                    <div class="wallet-card">
+                        <h3>Account Status</h3>
+                        <div style="font-size: 1.5rem; color: #10b981; margin: 1rem 0;">
+                            <i class="fas fa-check-circle"></i> Active
+                        </div>
+                        <div style="color: #64748b;">Member since <span id="memberSince">Loading...</span></div>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="value" id="totalSent">$0.00</div>
+                        <div class="label">Total Sent</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value" id="totalReceived">$0.00</div>
+                        <div class="label">Total Received</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="value" id="transactionCount">0</div>
+                        <div class="label">Total Transactions</div>
+                    </div>
+                </div>
+
+                <h3>Recent Transactions</h3>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Amount</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentTransactions">
+                            <tr><td colspan="4" class="loading">Loading transactions...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Transactions Section -->
+            <div id="transactionsSection" class="section" style="display: none;">
+                <h2>Transaction History</h2>
+
+                <div class="filters">
+                    <select id="statusFilter">
+                        <option value="">All Status</option>
+                        <option value="success">Success</option>
+                        <option value="pending">Pending</option>
+                        <option value="failed">Failed</option>
+                    </select>
+                    <select id="typeFilter">
+                        <option value="">All Types</option>
+                        <option value="credit">Credit</option>
+                        <option value="debit">Debit</option>
+                    </select>
+                    <input type="date" id="dateFrom" placeholder="From Date">
+                    <input type="date" id="dateTo" placeholder="To Date">
+                    <button class="btn" onclick="applyFilters()">Apply Filters</button>
+                </div>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Amount</th>
+                                <th>Mode</th>
+                                <th>Status</th>
+                                <th>Description</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactionsTable">
+                            <tr><td colspan="6" class="loading">Loading transactions...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Profile Section -->
+            <div id="profileSection" class="section" style="display: none;">
+                <h2>Profile Settings</h2>
+
+                <div class="wallet-card">
+                    <h3>Account Information</h3>
+                    <div style="margin: 1rem 0;">
+                        <strong>Name:</strong> <span id="profileName">Loading...</span><br>
+                        <strong>Email:</strong> <span id="profileEmail">Loading...</span><br>
+                        <strong>Wallet ID:</strong> <span id="profileWalletId">Loading...</span><br>
+                        <strong>Role:</strong> <span id="profileRole">Loading...</span><br>
+                        <strong>Joined:</strong> <span id="profileJoined">Loading...</span>
+                    </div>
+                </div>
+
+                <div class="wallet-card" style="margin-top: 2rem;">
+                    <h3>Change Password</h3>
+                    <form onsubmit="handleChangePassword(event)">
+                        <div class="form-group">
+                            <label for="currentPassword">Current Password</label>
+                            <input type="password" id="currentPassword" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="newPassword">New Password</label>
+                            <input type="password" id="newPassword" required minlength="8">
+                        </div>
+                        <button type="submit" class="btn">Change Password</button>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script>
+        const API_BASE = window.location.origin;
+        let authToken = localStorage.getItem('clientToken');
+        let socket;
+        let currentUser = null;
+        let currentSection = 'overview';
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', () => {
+            if (authToken) {
+                showDashboard();
+            } else {
+                showAuth();
+            }
+        });
+
+        // Authentication functions
+        function showAuthTab(tab) {
+            document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.auth-tab')[tab === 'login' ? 0 : 1].classList.add('active');
+
+            document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
+            document.getElementById('registerForm').style.display = tab === 'register' ? 'block' : 'none';
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const loginBtn = document.getElementById('loginBtn');
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Logging in...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.data.user.role === 'user') {
+                    authToken = data.data.token;
+                    currentUser = data.data.user;
+                    localStorage.setItem('clientToken', authToken);
+                    showDashboard();
+                } else {
+                    showAlert('loginAlert', data.message || 'Login failed', 'error');
+                }
+            } catch (error) {
+                showAlert('loginAlert', 'Login failed', 'error');
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Login';
+            }
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            const registerBtn = document.getElementById('registerBtn');
+            const name = document.getElementById('regName').value;
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPassword').value;
+
+            registerBtn.disabled = true;
+            registerBtn.textContent = 'Registering...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, password })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showAlert('registerAlert', 'Registration successful! Please login.', 'success');
+                    showAuthTab('login');
+                } else {
+                    showAlert('registerAlert', data.message, 'error');
+                }
+            } catch (error) {
+                showAlert('registerAlert', 'Registration failed', 'error');
+            } finally {
+                registerBtn.disabled = false;
+                registerBtn.textContent = 'Register';
+            }
+        }
+
+        function logout() {
+            authToken = null;
+            currentUser = null;
+            localStorage.removeItem('clientToken');
+            if (socket) socket.disconnect();
+            showAuth();
+        }
+
+        // Dashboard functions
+        async function showDashboard() {
+            document.getElementById('authContainer').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+
+            // Initialize Socket.IO
+            socket = io(API_BASE);
+            socket.emit('join', currentUser.walletId);
+
+            // Listen for real-time updates
+            socket.on('balanceUpdated', handleBalanceUpdate);
+            socket.on('newTransaction', handleNewTransaction);
+
+            // Load dashboard data
+            await loadProfile();
+            await loadBalance();
+            await loadTransactionStats();
+            await loadRecentTransactions();
+        }
+
+        function showAuth() {
+            document.getElementById('authContainer').style.display = 'flex';
+            document.getElementById('dashboard').style.display = 'none';
+        }
+
+        // API helper
+        async function apiCall(endpoint, options = {}) {
+            const defaultOptions = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+                }
+            };
+
+            const response = await fetch(`${API_BASE}${endpoint}`, { ...defaultOptions, ...options });
+            const data = await response.json();
+
+            if (response.status === 401) {
+                logout();
+                throw new Error('Unauthorized');
+            }
+
+            return data;
+        }
+
+        // Load profile
+        async function loadProfile() {
+            try {
+                const data = await apiCall('/api/client/profile');
+                if (data.success) {
+                    currentUser = data.data;
+                    document.getElementById('userName').textContent = data.data.name;
+                    document.getElementById('walletId').textContent = data.data.walletId;
+                    document.getElementById('memberSince').textContent = new Date(data.data.createdAt).toLocaleDateString();
+                }
+            } catch (error) {
+                console.error('Failed to load profile:', error);
+            }
+        }
+
+        // Load balance
+        async function loadBalance() {
+            try {
+                const data = await apiCall('/api/client/balance');
+                if (data.success) {
+                    document.getElementById('currentBalance').textContent = '$' + data.data.balance.toFixed(2);
+                }
+            } catch (error) {
+                console.error('Failed to load balance:', error);
+            }
+        }
+
+        // Load transaction statistics
+        async function loadTransactionStats() {
+            try {
+                const data = await apiCall('/api/client/transaction-stats');
+                if (data.success) {
+                    document.getElementById('totalSent').textContent = '$' + data.data.totalSent.toFixed(2);
+                    document.getElementById('totalReceived').textContent = '$' + data.data.totalReceived.toFixed(2);
+                    document.getElementById('transactionCount').textContent = data.data.sentCount + data.data.receivedCount;
+                }
+            } catch (error) {
+                console.error('Failed to load transaction stats:', error);
+            }
+        }
+
+        // Load recent transactions
+        async function loadRecentTransactions() {
+            try {
+                const data = await apiCall('/api/client/transactions?limit=5');
+                if (data.success) {
+                    const tbody = document.getElementById('recentTransactions');
+                    tbody.innerHTML = data.data.transactions.map(tx => `
+                        <tr>
+                            <td>${tx.type === 'credit' ? 'Received' : 'Sent'}</td>
+                            <td class="${tx.type === 'credit' ? 'amount-positive' : 'amount-negative'}">
+                                ${tx.type === 'credit' ? '+' : '-'}$${tx.amount}
+                            </td>
+                            <td><span class="status-badge status-${tx.status}">${tx.status}</span></td>
+                            <td>${new Date(tx.createdAt).toLocaleDateString()}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Failed to load recent transactions:', error);
+            }
+        }
+
+        // Load full transactions
+        async function loadTransactions() {
+            const status = document.getElementById('statusFilter').value;
+            const type = document.getElementById('typeFilter').value;
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+
+            const params = new URLSearchParams();
+            if (status) params.append('status', status);
+            if (type) params.append('type', type);
+            if (dateFrom) params.append('dateFrom', dateFrom);
+            if (dateTo) params.append('dateTo', dateTo);
+
+            try {
+                const data = await apiCall(`/api/client/transactions?${params}`);
+                if (data.success) {
+                    const tbody = document.getElementById('transactionsTable');
+                    tbody.innerHTML = data.data.transactions.map(tx => `
+                        <tr>
+                            <td>${tx.type === 'credit' ? 'Credit' : 'Debit'}</td>
+                            <td class="${tx.type === 'credit' ? 'amount-positive' : 'amount-negative'}">
+                                ${tx.type === 'credit' ? '+' : '-'}$${tx.amount}
+                            </td>
+                            <td>${tx.mode}</td>
+                            <td><span class="status-badge status-${tx.status}">${tx.status}</span></td>
+                            <td>${tx.description || '-'}</td>
+                            <td>${new Date(tx.createdAt).toLocaleString()}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Failed to load transactions:', error);
+            }
+        }
+
+        // Real-time event handlers
+        function handleBalanceUpdate(data) {
+            if (data.walletId === currentUser.walletId) {
+                document.getElementById('currentBalance').textContent = '$' + data.newBalance.toFixed(2);
+                loadTransactionStats(); // Refresh stats
+            }
+        }
+
+        function handleNewTransaction(data) {
+            if (data.walletId === currentUser.walletId) {
+                loadRecentTransactions(); // Refresh recent transactions
+                loadTransactions(); // Refresh full transaction list if visible
+                loadTransactionStats(); // Refresh stats
+            }
+        }
+
+        // UI functions
+        function showSection(section) {
+            document.querySelectorAll('.section').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+
+            document.getElementById(section + 'Section').style.display = 'block';
+            event.target.classList.add('active');
+            currentSection = section;
+
+            if (section === 'transactions') {
+                loadTransactions();
+            } else if (section === 'profile') {
+                loadProfileData();
+            }
+        }
+
+        function loadProfileData() {
+            if (currentUser) {
+                document.getElementById('profileName').textContent = currentUser.name;
+                document.getElementById('profileEmail').textContent = currentUser.email;
+                document.getElementById('profileWalletId').textContent = currentUser.walletId;
+                document.getElementById('profileRole').textContent = currentUser.role;
+                document.getElementById('profileJoined').textContent = new Date(currentUser.createdAt).toLocaleDateString();
+            }
+        }
+
+        async function handleChangePassword(e) {
+            e.preventDefault();
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+
+            try {
+                const data = await apiCall('/api/auth/change-password', {
+                    method: 'POST',
+                    body: JSON.stringify({ currentPassword, newPassword })
+                });
+
+                if (data.success) {
+                    alert('Password changed successfully!');
+                    document.getElementById('currentPassword').value = '';
+                    document.getElementById('newPassword').value = '';
+                } else {
+                    alert(data.message);
+                }
+            } catch (error) {
+                alert('Failed to change password');
+            }
+        }
+
+        function applyFilters() {
+            loadTransactions();
+        }
+
+        function showAlert(elementId, message, type) {
+            const alertEl = document.getElementById(elementId);
+            alertEl.textContent = message;
+            alertEl.className = `alert ${type}`;
+            alertEl.style.display = 'block';
+            setTimeout(() => alertEl.style.display = 'none', 5000);
+        }
+    </script>
+</body>
+</html>
