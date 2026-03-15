@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { prisma } from '../services/db.service';
 import logger from '../utils/logger';
+import os from 'os';
 import { ensureSystemState, getBankState, SYSTEM_ADMIN_PHONE, SYSTEM_VAULT_PHONE } from '../services/system.service';
+import { toMoneyNumber } from '../utils/money';
 
 const router = Router();
 
@@ -16,7 +18,7 @@ function formatTx(tx: any) {
     id: tx.id,
     from: tx.from,
     to: tx.to,
-    amount: tx.amount,
+    amount: toMoneyNumber(tx.amount),
     signature: tx.signature,
     status: tx.status,
     type: tx.type,
@@ -56,8 +58,8 @@ router.get('/overview', async (_req, res) => {
       metrics: {
         users,
         onlineUsers,
-        totalUserBalance: totalUserBalance._sum.balance ?? 0,
-        vaultBalance: state.vaultBalance,
+        totalUserBalance: toMoneyNumber(totalUserBalance._sum.balance),
+        vaultBalance: toMoneyNumber(state.vaultBalance),
         transactionCount: txCount,
       },
       recentTransactions: recent.map(formatTx),
@@ -79,11 +81,11 @@ router.get('/users', async (req, res) => {
         phone: { notIn: [SYSTEM_ADMIN_PHONE, SYSTEM_VAULT_PHONE] },
         ...(q
           ? {
-              OR: [
-                { phone: { contains: q } },
-                { displayName: { contains: q } },
-              ],
-            }
+            OR: [
+              { phone: { contains: q } },
+              { displayName: { contains: q } },
+            ],
+          }
           : {}),
       },
       orderBy: [{ updatedAt: 'desc' }],
@@ -102,7 +104,14 @@ router.get('/users', async (req, res) => {
       },
     });
 
-    return res.json({ success: true, count: users.length, users });
+    return res.json({
+      success: true,
+      count: users.length,
+      users: users.map((user) => ({
+        ...user,
+        balance: toMoneyNumber(user.balance),
+      })),
+    });
   } catch (e: any) {
     logger.error(`[ADMIN] /users ${e.message}`);
     return res.status(500).json({ success: false, error: e.message });
@@ -175,7 +184,7 @@ router.get('/users/:phone/analytics', async (req, res) => {
       const daily = dailyMap.get(day)!;
       daily.count += 1;
 
-      const amount = Number(tx.amount) || 0;
+      const amount = toMoneyNumber(tx.amount);
       if (tx.to === phone) {
         incomingTotal += amount;
         incomingCount += 1;
@@ -209,7 +218,10 @@ router.get('/users/:phone/analytics', async (req, res) => {
 
     return res.json({
       success: true,
-      user,
+      user: {
+        ...user,
+        balance: toMoneyNumber(user.balance),
+      },
       periodDays: days,
       summary: {
         incomingTotal,
@@ -243,7 +255,8 @@ router.post('/add-money', async (req, res) => {
       const user = await tx.user.findUnique({ where: { phone } });
       if (!user) throw new Error('User not found');
       const state = await tx.bankState.findUniqueOrThrow({ where: { id: 1 } });
-      if (state.vaultBalance < amount) throw new Error('Bank vault has insufficient balance');
+      const vaultUser = await tx.user.findUnique({ where: { phone: SYSTEM_VAULT_PHONE } });
+      if (toMoneyNumber(state.vaultBalance) < amount) throw new Error('Bank vault has insufficient balance');
 
       const updatedUser = await tx.user.update({
         where: { phone },
@@ -264,6 +277,8 @@ router.post('/add-money', async (req, res) => {
           id: `admin_deposit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
           from: SYSTEM_VAULT_PHONE,
           to: phone,
+          fromUserId: vaultUser?.id ?? null,
+          toUserId: user.id,
           amount,
           signature: 'ADMIN_OPERATION',
           timestamp: BigInt(Date.now()),
@@ -280,8 +295,8 @@ router.post('/add-money', async (req, res) => {
       success: true,
       phone,
       amount,
-      balance: result.updatedUser.balance,
-      vaultBalance: result.updatedState.vaultBalance,
+      balance: toMoneyNumber(result.updatedUser.balance),
+      vaultBalance: toMoneyNumber(result.updatedState.vaultBalance),
     });
   } catch (e: any) {
     logger.error(`[ADMIN] add-money ${e.message}`);
@@ -302,7 +317,7 @@ router.post('/remove-money', async (req, res) => {
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({ where: { phone } });
       if (!user) throw new Error('User not found');
-      if (user.balance < amount) throw new Error('User balance is insufficient');
+      if (toMoneyNumber(user.balance) < amount) throw new Error('User balance is insufficient');
 
       const updatedUser = await tx.user.update({
         where: { phone },
@@ -317,12 +332,15 @@ router.post('/remove-money', async (req, res) => {
         where: { id: 1 },
         data: { vaultBalance: { increment: amount } },
       });
+      const vaultUser = await tx.user.findUnique({ where: { phone: SYSTEM_VAULT_PHONE } });
 
       await tx.transaction.create({
         data: {
           id: `admin_withdraw_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
           from: phone,
           to: SYSTEM_VAULT_PHONE,
+          fromUserId: user.id,
+          toUserId: vaultUser?.id ?? null,
           amount,
           signature: 'ADMIN_OPERATION',
           timestamp: BigInt(Date.now()),
@@ -339,8 +357,8 @@ router.post('/remove-money', async (req, res) => {
       success: true,
       phone,
       amount,
-      balance: result.updatedUser.balance,
-      vaultBalance: result.updatedState.vaultBalance,
+      balance: toMoneyNumber(result.updatedUser.balance),
+      vaultBalance: toMoneyNumber(result.updatedState.vaultBalance),
     });
   } catch (e: any) {
     logger.error(`[ADMIN] remove-money ${e.message}`);
@@ -361,7 +379,7 @@ router.get('/queue-issues', async (_req, res) => {
         let payload: Record<string, any> = {};
         try {
           payload = row.description ? JSON.parse(row.description) : {};
-        } catch (_) {}
+        } catch (_) { }
         return {
           id: row.id,
           walletId: payload.walletId ?? row.from,
@@ -401,7 +419,7 @@ router.post('/queue-issues/:id/resolve', async (req, res) => {
     let payload: Record<string, any> = {};
     try {
       payload = existing.description ? JSON.parse(existing.description) : {};
-    } catch (_) {}
+    } catch (_) { }
     payload.resolution = 'resolved_by_admin';
     payload.resolutionNote = resolutionNote;
     payload.resolvedBy = resolvedBy;
@@ -436,7 +454,7 @@ router.post('/queue-issues/:id/reopen', async (req, res) => {
     let payload: Record<string, any> = {};
     try {
       payload = existing.description ? JSON.parse(existing.description) : {};
-    } catch (_) {}
+    } catch (_) { }
     payload.reopenReason = reopenReason;
     payload.reopenedBy = reopenedBy;
     payload.reopenedAt = Date.now();
@@ -461,70 +479,23 @@ router.post('/queue-issues/:id/reopen', async (req, res) => {
   }
 });
 
-// Add credit route for admin panel
-router.post('/credit', async (req, res) => {
+router.get('/server-info', async (req, res) => {
   try {
-    await ensureSystemState();
-    
-    const { phone, amount } = req.body;
-    
-    if (!phone || !amount) {
-      return res.status(400).json({ success: false, error: 'Phone and amount required' });
-    }
-    
-    const creditAmount = parseFloat(amount);
-    if (isNaN(creditAmount) || creditAmount <= 0) {
-      return res.status(400).json({ success: false, error: 'Invalid amount' });
-    }
-    
-    // Create or update user balance
-    const user = await prisma.user.upsert({
-      where: { phone },
-      update: {
-        balance: { increment: creditAmount }
-      },
-      create: {
-        phone,
-        balance: creditAmount,
-        publicKey: 'temp-key-' + Date.now(),
-        displayName: `User ${phone}`
+    const nets = os.networkInterfaces();
+    let localIp = '127.0.0.1';
+    for (const name of Object.keys(nets)) {
+      for (const net of nets[name]!) {
+        // Skip over non-IPv4 and internal (i.e. 127.0.0.1) addresses
+        if (net.family === 'IPv4' && !net.internal) {
+          localIp = net.address;
+          break;
+        }
       }
-    });
-    
-    return res.json({ 
-      success: true, 
-      message: `Credited ${creditAmount} to ${phone}`,
-      user: {
-        phone: user.phone,
-        balance: user.balance
-      }
-    });
+    }
+    const port = process.env.PORT || '3000';
+    return res.json({ success: true, localIp, port, fullUrl: `http://${localIp}:${port}` });
   } catch (e: any) {
-    logger.error(`[ADMIN] /credit ${e.message}`);
-    return res.status(500).json({ success: false, error: e.message });
-  }
-});
-
-// Add wallets route for frontend compatibility
-router.get('/wallets', async (req, res) => {
-  try {
-    await ensureSystemState();
-    
-    const wallets = await prisma.user.findMany({
-      where: {
-        phone: { notIn: [SYSTEM_ADMIN_PHONE, SYSTEM_VAULT_PHONE] },
-      },
-      orderBy: [{ createdAt: 'desc' }],
-      select: {
-        phone: true,
-        balance: true,
-        createdAt: true,
-      },
-    });
-
-    return res.json(wallets);
-  } catch (e: any) {
-    logger.error(`[ADMIN] /wallets ${e.message}`);
+    logger.error(`[ADMIN] server-info ${e.message}`);
     return res.status(500).json({ success: false, error: e.message });
   }
 });

@@ -12,9 +12,9 @@ model User {
   id          String   @id @default(uuid()) @db.Uuid
   phone       String   @unique
   displayName String?
-  publicKey   String   @unique // P-256 Hex
+  publicKey   String   @unique
   balance     Decimal  @default(0) @db.Decimal(18, 2)
-  nonce       String   @default("") // Replay protection
+  nonce       String   @default("")
   trustScore  Int      @default(100)
   isFrozen    Boolean  @default(false)
   status      String   @default("OFFLINE")
@@ -32,18 +32,17 @@ model User {
   @@index([updatedAt])
 }
 
-// TRANSACTION (Ledger History)
 model Transaction {
-  id          String   @id // UUID or ULID provided by app
-  from        String   // Phone or Public Key for immutable history
-  to          String   // Phone or Public Key for immutable history
+  id          String   @id
+  from        String
+  to          String
   fromUserId  String?  @db.Uuid
   toUserId    String?  @db.Uuid
   amount      Decimal  @db.Decimal(18, 2)
-  signature   String   // Sender's signature (Hex)
-  timestamp   BigInt   // Keep precision for wallet compatibility
-  status      String   // PENDING, CONFIRMED, FAILED
-  type        String   // TRANSFER, ADJUSTMENT, ADMIN_*
+  signature   String
+  timestamp   BigInt
+  status      String
+  type        String
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

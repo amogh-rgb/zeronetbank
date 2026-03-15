@@ -1,6 +1,6 @@
 export const emailConfig = {
-  user: 'zeronetpay0@gmail.com',
-  pass: 'cxcx zmlz udoo vrzi', // Your 16-character app password
+  user: process.env.EMAIL_USER || '',
+  pass: process.env.EMAIL_PASS || '',
   service: 'gmail' as const,
 };
 

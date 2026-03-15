@@ -1,0 +1,9 @@
+node_modules
+npm-debug.log
+dist
+.env
+.env.*
+prisma/dev.db
+prisma/backups
+coverage
+*.tsbuildinfo

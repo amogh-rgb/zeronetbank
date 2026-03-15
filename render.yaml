@@ -1,13 +1,11 @@
-# Render.com deployment configuration for ZeroNetBank
-# Free tier compatible
-
 services:
   - type: web
-    name: zeronetbank
+    name: zeronetpay-bank
     runtime: node
-    plan: free
-    buildCommand: npm install && npx prisma generate && npm run build
-    startCommand: npm start
+    region: singapore
+    plan: starter
+    buildCommand: npm ci && npm run prisma:generate && npm run build
+    startCommand: npm run start:prod
     envVars:
       - key: NODE_ENV
         value: production
@@ -15,17 +13,22 @@ services:
         value: 10000
       - key: DATABASE_URL
         fromDatabase:
-          name: zeronetbank-db
+          name: zeronetpay-bank-db
           property: connectionString
-      - key: ADMIN_API_TOKEN
-        generateValue: true
+      - key: SQLITE_DATABASE_URL
+        value: file:./prisma/dev.db
       - key: JWT_SECRET
         generateValue: true
       - key: REFRESH_TOKEN_SECRET
         generateValue: true
+      - key: ADMIN_API_TOKEN
+        generateValue: true
+      - key: LOG_LEVEL
+        value: info
+    healthCheckPath: /health
+    autoDeploy: true
 
 databases:
-  - name: zeronetbank-db
-    databaseName: zeronetbank
-    user: zeronetbank
-    plan: free
+  - name: zeronetpay-bank-db
+    databaseName: zeronetpay
+    user: zeronetpay

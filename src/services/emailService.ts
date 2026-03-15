@@ -14,6 +14,12 @@ class EmailService {
 
   private async initializeTransporter() {
     try {
+      if (!emailConfig.user || !emailConfig.pass) {
+        logger.warn('Email service disabled: EMAIL_USER/EMAIL_PASS not configured');
+        this.isConfigured = false;
+        return;
+      }
+
       // Configure with your Gmail account
       this.transporter = nodemailer.createTransport({
         service: emailConfig.service,
@@ -23,7 +29,7 @@ class EmailService {
         },
       });
       
-      logger.info('Email service initialized with Gmail: zeronetpay0@gmail.com');
+      logger.info(`Email service initialized with Gmail: ${emailConfig.user}`);
       this.isConfigured = true;
       
       // Test email sending
@@ -441,7 +447,7 @@ class EmailService {
   getTestAccountInfo(): { user: string; url: string } | null {
     if (process.env.NODE_ENV === 'development') {
       return {
-        user: 'zeronetpay0@gmail.com',
+        user: emailConfig.user || 'not-configured',
         url: 'https://ethereal.email/messages'
       };
     }

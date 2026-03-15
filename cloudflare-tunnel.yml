@@ -1,0 +1,7 @@
+tunnel: zeronetpay-bank
+credentials-file: C:\Users\YOUR_USERNAME\.cloudflared\zeronetpay-bank.json
+
+ingress:
+  - hostname: bank.yourdomain.com
+    service: http://localhost:3000
+  - service: http_status:404

@@ -2,14 +2,18 @@ import { prisma } from './db.service';
 
 export const SYSTEM_VAULT_PHONE = 'BANK_VAULT';
 export const SYSTEM_ADMIN_PHONE = 'BANK_ADMIN';
-const SYSTEM_PUBLIC_KEY_VAULT = '04' + '1'.repeat(128);
-const SYSTEM_PUBLIC_KEY_ADMIN = '04' + '2'.repeat(128);
+// Use fixed, non-trivial reserved keys to avoid collisions with dev/mock keys.
+const SYSTEM_PUBLIC_KEY_VAULT =
+  '04b34397b23a39751422c836851f4f5b28aea13fdb9721eee22769ddfcd0dd01abfd1b603cd16911d381b216062e56554eb1e7b9d1f69e49d42303d908f2ec1d95';
+const SYSTEM_PUBLIC_KEY_ADMIN =
+  '04531f25f9388d13f62488aa58e9b284526d8e59235c691ee82f71df670113195e375bae035c7e80cbad778707e2eb4c43f9df00219eba220796eeaf568b1e3fbc';
 
 export async function ensureSystemState() {
   await prisma.$transaction(async (tx) => {
     await tx.user.upsert({
       where: { phone: SYSTEM_VAULT_PHONE },
       update: {
+        publicKey: SYSTEM_PUBLIC_KEY_VAULT,
         displayName: 'Bank Vault',
         status: 'ONLINE',
         trustScore: 100,
@@ -27,6 +31,7 @@ export async function ensureSystemState() {
     await tx.user.upsert({
       where: { phone: SYSTEM_ADMIN_PHONE },
       update: {
+        publicKey: SYSTEM_PUBLIC_KEY_ADMIN,
         displayName: 'Bank Admin',
         status: 'ONLINE',
         trustScore: 100,

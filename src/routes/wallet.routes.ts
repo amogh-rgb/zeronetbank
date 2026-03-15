@@ -4,6 +4,7 @@ import { QueueAlertSchema, SyncSchema, TransferSchema } from '../utils/validatio
 import { CryptoService } from '../services/crypto.service';
 import logger from '../utils/logger';
 import { ensureSystemState } from '../services/system.service';
+import { toMoneyNumber } from '../utils/money';
 
 const router = Router();
 
@@ -75,7 +76,7 @@ router.post('/ping', async (req, res) => {
       wallet: {
         phone: updated.phone,
         displayName: updated.displayName,
-        balance: updated.balance,
+        balance: toMoneyNumber(updated.balance),
         trustScore: updated.trustScore,
         status: updated.status,
         lastSeenAt: updated.lastSeenAt,
@@ -137,7 +138,7 @@ router.post('/sync', async (req, res) => {
           continue;
         }
 
-        if (sender.balance < amount) {
+        if (toMoneyNumber(sender.balance) < amount) {
           ignoredIds.push(item.id);
           continue;
         }
@@ -167,6 +168,8 @@ router.post('/sync', async (req, res) => {
             id: item.id,
             from: sender.phone,
             to: receiver.phone,
+            fromUserId: sender.id,
+            toUserId: receiver.id,
             amount,
             signature: item.signature,
             timestamp: BigInt(item.timestamp),
@@ -222,7 +225,7 @@ router.post('/sync', async (req, res) => {
     return res.json({
       success: true,
       bgw: true,
-      balance: updatedUser.balance,
+      balance: toMoneyNumber(updatedUser.balance),
       trustScore,
       syncId,
       timestamp: responseTimestamp,
@@ -234,7 +237,7 @@ router.post('/sync', async (req, res) => {
         id: row.id,
         from: row.from,
         to: row.to,
-        amount: row.amount,
+        amount: toMoneyNumber(row.amount),
         signature: row.signature,
         status: row.status,
         type: row.type,
@@ -273,7 +276,7 @@ router.post('/transfer', async (req, res) => {
     const walletId = auth.walletId;
     await prisma.$transaction(async (tx) => {
       const sender = await tx.user.findUniqueOrThrow({ where: { phone: walletId } });
-      if (sender.balance < txData.amount) throw new Error('Insufficient funds');
+      if (toMoneyNumber(sender.balance) < txData.amount) throw new Error('Insufficient funds');
 
       const already = await tx.transaction.findUnique({ where: { id: txData.id } });
       if (already) return;
@@ -303,6 +306,8 @@ router.post('/transfer', async (req, res) => {
           id: txData.id,
           from: sender.phone,
           to: receiver.phone,
+          fromUserId: sender.id,
+          toUserId: receiver.id,
           amount: txData.amount,
           signature: txData.signature,
           timestamp: BigInt(txData.timestamp),
@@ -415,6 +420,52 @@ router.get('/queue-issues', async (req, res) => {
     });
   } catch (e: any) {
     logger.error(`[QUEUE_ISSUES] ${e.message}`);
+    return res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// GET /wallet/:phone/transactions
+// Returns full wallet transaction history for statement rendering.
+router.get('/:phone/transactions', async (req, res) => {
+  try {
+    await ensureSystemState();
+    const phone = req.params.phone?.trim();
+    if (!phone) {
+      return res.status(400).json({ success: false, error: 'phone is required' });
+    }
+
+    const auth = await authenticateWalletRequest(req, 'STATEMENT');
+    if (!auth.ok) return res.status(auth.status).json({ success: false, error: auth.error });
+    if (auth.walletId !== phone) {
+      return res.status(403).json({ success: false, error: 'Forbidden wallet access' });
+    }
+
+    const limit = Math.min(1000, Math.max(1, Number(req.query.limit || 500)));
+    const rows = await prisma.transaction.findMany({
+      where: { OR: [{ from: phone }, { to: phone }] },
+      orderBy: { timestamp: 'desc' },
+      take: limit,
+    });
+
+    return res.json({
+      success: true,
+      phone,
+      count: rows.length,
+      transactions: rows.map((row) => ({
+        id: row.id,
+        from: row.from,
+        to: row.to,
+        amount: toMoneyNumber(row.amount),
+        signature: row.signature,
+        status: row.status,
+        type: row.type,
+        description: row.description,
+        timestamp: row.timestamp.toString(),
+        createdAt: row.createdAt,
+      })),
+    });
+  } catch (e: any) {
+    logger.error(`[WALLET] /:phone/transactions ${e.message}`);
     return res.status(500).json({ success: false, error: e.message });
   }
 });

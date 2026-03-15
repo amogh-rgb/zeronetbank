@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/sqlite-client"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("SQLITE_DATABASE_URL")
+}
+
+model User {
+  id          String    @id @default(uuid())
+  phone       String    @unique
+  displayName String?
+  publicKey   String    @unique
+  balance     Float     @default(0.0)
+  nonce       String    @default("")
+  trustScore  Int       @default(100)
+  isFrozen    Boolean   @default(false)
+  status      String    @default("OFFLINE")
+  lastSeenAt  DateTime?
+  lastSyncAt  DateTime?
+  deviceInfo  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Transaction {
+  id          String   @id
+  from        String
+  to          String
+  amount      Float
+  signature   String
+  timestamp   BigInt
+  status      String
+  type        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  @@index([from, timestamp])
+  @@index([to, timestamp])
+}
+
+model BankState {
+  id           Int      @id
+  vaultBalance Float    @default(1000000.0)
+  updatedAt    DateTime @updatedAt
+}

@@ -2,6 +2,10 @@ import { Router, Request, Response } from 'express';
 import emailService from '../services/emailService';
 import logger from '../utils/logger';
 
+declare global {
+  var otpCache: Record<string, string>;
+}
+
 const router = Router();
 
 // Generate OTP endpoint
@@ -37,28 +41,41 @@ router.post('/send-otp', async (req: Request, res: Response) => {
 
     // Generate OTP
     const otp = emailService.generateOTP();
-    
-    // Store OTP for verification (in production, you'd store in database)
+
+    // Store OTP keyed by otpId for verification
     const otpId = `otp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    logger.info(`OTP generated for ${email}: ${otp} (ID: ${otpId})`);
+    if (!global.otpCache) global.otpCache = {};
+    global.otpCache[otpId] = otp;
 
-    // Send OTP email
-    const emailSent = await emailService.sendOTP(email, otp, purpose as any);
+    // Auto-cleanup after 10 minutes
+    setTimeout(() => { if (global.otpCache?.[otpId]) delete global.otpCache[otpId]; }, 600000);
 
-    if (emailSent) {
-      return res.status(200).json({
-        success: true,
-        message: 'OTP sent successfully',
-        otpId: otpId,
-        expiresIn: 600, // 10 minutes in seconds
-      });
-    } else {
-      return res.status(500).json({
-        success: false,
-        error: 'Failed to send OTP email',
-      });
+    // ── ALWAYS VISIBLE IN SERVER TERMINAL ────────────────────────────────
+    logger.info('╔══════════════════════════════════════════════════╗');
+    logger.info(`║  📧 EMAIL OTP for ${email}`);
+    logger.info(`║  Code: [ ${otp} ]  ID: ${otpId}`);
+    logger.info('╚══════════════════════════════════════════════════╝');
+    // ─────────────────────────────────────────────────────────────────────
+
+    // Try to send email — don't wait for it; failure must NOT block response
+    let emailDelivery = false;
+    try {
+      emailDelivery = await emailService.sendOTP(email, otp, purpose as any);
+    } catch (err: any) {
+      logger.warn(`Gmail send failed (non-fatal): ${err?.message ?? err}`);
+      emailDelivery = false;
     }
+
+    // Always return success + OTP so the Flutter app can show it directly
+    return res.status(200).json({
+      success: true,
+      message: emailDelivery
+        ? 'OTP generated and sent to email'
+        : 'OTP generated (email delivery unavailable, use shown OTP)',
+      otp,          // shown in app UI — remove in production SMS-only flow
+      otpId,
+      expiresIn: 600,
+    });
   } catch (error) {
     logger.error('Send OTP error:', error);
     return res.status(500).json({
@@ -67,6 +84,7 @@ router.post('/send-otp', async (req: Request, res: Response) => {
     });
   }
 });
+
 
 // Verify OTP endpoint
 router.post('/verify-otp', async (req: Request, res: Response) => {
@@ -99,16 +117,33 @@ router.post('/verify-otp', async (req: Request, res: Response) => {
       });
     }
 
-    // Verify OTP (in production, you'd verify against stored OTP)
-    // For demo purposes, we'll accept any 6-digit OTP
-    if (otp.length !== 6 || !/^\d{6}$/.test(otp)) {
+    // In memory store for OTPs (simplistic for demo but uses actual OTP)
+    // NOTE: This usually requires a database or Redis cache to store 'otpId' -> 'otp' pairs securely.
+    // For this implementation, since memory cache wasn't provided, 
+    // we should at least block the "any 6 digit OTP" hole and require them to match their received token.
+    // However, to enforce strict checking without a DB immediately, we must add a cache map here.
+
+    // We will inject a simple memory cache above to store otpId -> otp mappings
+    const storedOtp = global.otpCache ? global.otpCache[otpId] : null;
+
+    if (!storedOtp) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid OTP format. Must be 6 digits',
+        error: 'OTP expired or invalid OTP ID',
       });
     }
 
-    logger.info(`OTP verified for ${email}: ${otp}`);
+    if (otp !== storedOtp) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid OTP code',
+      });
+    }
+
+    // Clear the OTP from cache once verified successfully
+    delete global.otpCache[otpId];
+
+    logger.info(`OTP verified successfully for ${email}`);
 
     return res.status(200).json({
       success: true,
@@ -253,7 +288,7 @@ router.post('/send-password-reset', async (req: Request, res: Response) => {
 
     // Generate reset token
     const resetToken = Math.random().toString(36).substr(2, 9) + Math.random().toString(36).substr(2, 9);
-    
+
     // Send password reset email
     const emailSent = await emailService.sendPasswordReset(email, resetToken);
 
@@ -283,7 +318,7 @@ router.post('/send-password-reset', async (req: Request, res: Response) => {
 router.get('/test-email', async (req: Request, res: Response) => {
   try {
     const testInfo = emailService.getTestAccountInfo();
-    
+
     if (testInfo) {
       return res.status(200).json({
         success: true,
@@ -307,3 +342,5 @@ router.get('/test-email', async (req: Request, res: Response) => {
 });
 
 export default router;
+
+

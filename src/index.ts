@@ -3,28 +3,20 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { json } from 'body-parser';
-import { createServer } from 'http';
 
 import AuthRoutes from './routes/auth.routes';
 import WalletRoutes from './routes/wallet.routes';
 import AdminRoutes from './routes/admin.routes';
 import PublicRoutes from './routes/public.routes';
 import EmailRoutes from './routes/email.routes';
-import OTPRoutes from './routes/otp.routes';
-<<<<<<< HEAD
-import SMSRoutes from './routes/sms.routes';
-import RegistrationRoutes from './routes/registration.routes';
-import UserProfileRoutes from './routes/user-profile.routes';
-=======
-import RegistrationRoutes from './routes/registration.routes';
->>>>>>> 6b520136e9b5d97ad4e43bc8938a8a2b0033ef76
-import { setupWebSocket } from './routes/websocket.routes';
 import { adaptiveLimiter, syncLimiter, transactionLimiter } from './middleware/intelligentRateLimit.middleware';
 import { cacheMiddleware, userCacheMiddleware } from './middleware/cache.middleware';
 import { adminAuth } from './middleware/adminAuth.middleware';
 import logger from './utils/logger';
 import path from 'path';
+import os from 'os';
 import { ensureSystemState } from './services/system.service';
+import { connectPrismaWithRetry, prisma } from './services/db.service';
 
 // Load environment variables
 dotenv.config();
@@ -64,6 +56,51 @@ app.get('/health', (req, res) => {
   res.json({ status: 'UP' });
 });
 
+// ── Live server info ──────────────────────────────────────────────────────
+// Re-reads network interfaces on every request. Prioritises Wi-Fi over
+// VMware/virtual adapters so the admin panel always shows the IP the phone
+// can actually reach.
+app.get('/api/server-info', (req, res) => {
+  const VIRTUAL = ['vmware', 'vmnet', 'virtualbox', 'vbox', 'hyper-v',
+    'bluetooth', 'isatap', 'teredo', 'loopback', 'tunnel'];
+
+  function rank(name: string): number {
+    const l = name.toLowerCase();
+    if (VIRTUAL.some(k => l.includes(k))) return 3;
+    if (l.includes('wi-fi') || l.includes('wifi') || l.includes('wlan') || l.includes('wireless')) return 0;
+    if (l.includes('ethernet') || l.includes('eth') || l.includes('en0') || l.includes('en1')) return 1;
+    return 2;
+  }
+
+  const candidates: { iface: string; address: string; rank: number }[] = [];
+  for (const name of Object.keys(os.networkInterfaces())) {
+    for (const net of os.networkInterfaces()[name] ?? []) {
+      if (net.family === 'IPv4' && !net.internal) {
+        candidates.push({ iface: name, address: net.address, rank: rank(name) });
+      }
+    }
+  }
+  candidates.sort((a, b) => a.rank - b.rank);
+
+  const primary = candidates[0];
+  const primaryIp = primary?.address ?? '127.0.0.1';
+  const bankUrl = `http://${primaryIp}:${PORT}`;
+  const isVirtual = primary?.rank === 3;
+
+  res.json({
+    primaryIp,
+    primaryIface: primary?.iface ?? 'unknown',
+    port: PORT,
+    bankUrl,
+    isVirtualAdapter: isVirtual,
+    allInterfaces: candidates.map(c => ({ iface: c.iface, address: c.address })),
+    localhost: `http://localhost:${PORT}`,
+  });
+});
+// ─────────────────────────────────────────────────────────────────────────
+
+
+
 // Apply intelligent rate limiting and caching to different endpoints
 // Public endpoints with caching
 app.use('/api/public/directory', cacheMiddleware(300), adaptiveLimiter);
@@ -81,22 +118,13 @@ app.use('/wallet/balance', userCacheMiddleware(60));
 app.use('/wallet/transactions', userCacheMiddleware(120));
 
 // Static files for admin dashboard UI
-app.use(express.static(path.join(__dirname, '../public')));
 app.use('/admin', express.static(path.join(__dirname, '../public/admin')));
 
 // API routes
 app.use('/auth', AuthRoutes);
-app.use('/wallet', WalletRoutes); 
-app.use('/api/admin', adminAuth, AdminRoutes); 
-app.use('/api/public', PublicRoutes); 
-app.use('/api/otp', OTPRoutes);
-<<<<<<< HEAD
-app.use('/api/sms', SMSRoutes);
-app.use('/api/registration', RegistrationRoutes);
-app.use('/api/profile', UserProfileRoutes);
-=======
-app.use('/api/registration', RegistrationRoutes);
->>>>>>> 6b520136e9b5d97ad4e43bc8938a8a2b0033ef76
+app.use('/wallet', WalletRoutes);
+app.use('/api/admin', adminAuth, AdminRoutes);
+app.use('/api/public', PublicRoutes);
 app.use('/email', EmailRoutes);
 
 // Compatibility routes (legacy app/backend clients)
@@ -110,18 +138,42 @@ app.post('/api/v1/wallet/register', (req, res, next) => {
 });
 
 if (require.main === module) {
-  ensureSystemState()
+  connectPrismaWithRetry()
+    .then(() => ensureSystemState())
     .catch((e) => logger.error(`System bootstrap failed: ${e}`))
     .finally(() => {
-      const server = createServer(app);
-      const io = setupWebSocket(server);
-      
-      server.listen(PORT, '0.0.0.0', () => {
-        logger.info(`ZeroNetBank Authority running on http://0.0.0.0:${PORT}`);
-        logger.info(`WebSocket server initialized`);
+      app.listen(PORT, '0.0.0.0', () => {
+        // Find local IPv4 address
+        const nets = os.networkInterfaces();
+        let localIp = '127.0.0.1';
+        for (const name of Object.keys(nets)) {
+          for (const net of nets[name]!) {
+            // Skip over non-IPv4 and internal (i.e. 127.0.0.1) addresses
+            if (net.family === 'IPv4' && !net.internal) {
+              localIp = net.address;
+              break;
+            }
+          }
+        }
+
+        logger.info(`✅ ZeroNetBank Authority running successfully!`);
+        logger.info(`========================================================`);
+        logger.info(`💻 Local Access: http://localhost:${PORT}`);
+        logger.info(`🌐 Network Access (Enter this in App): http://${localIp}:${PORT}`);
+        logger.info(`========================================================`);
         logger.info(`Mode: ${process.env.NODE_ENV || 'development'}`);
       });
     });
 }
+
+process.on('SIGINT', async () => {
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  await prisma.$disconnect();
+  process.exit(0);
+});
 
 export default app;
