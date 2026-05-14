@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 import {
   AccountLoginSchema,
   AccountRegisterSchema,
@@ -456,6 +456,147 @@ router.post('/account/reset-pin', async (req, res) => {
     });
   } catch (error: any) {
     logger.error(`[AUTH][SUPABASE] account/reset-pin failed: ${error.message}`);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+function hashOtp(otp: string): string {
+  return createHash('sha256').update(otp).digest('hex');
+}
+
+function makeOtp(len = 6): string {
+  let otp = '';
+  for (let i = 0; i < len; i++) otp += Math.floor(Math.random() * 10);
+  return otp;
+}
+
+// POST /otp/send-phone
+router.post('/otp/send-phone', async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+    if (!phoneNumber || String(phoneNumber).trim().length < 6) {
+      return res.status(400).json({ success: false, error: 'Valid phone number required' });
+    }
+
+    const phone = normalizePhone(String(phoneNumber));
+    const otp = makeOtp(6);
+    const otpId = randomUUID();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const now = new Date().toISOString();
+
+    await supabase
+      .from('phone_otp_codes')
+      .update({ consumed_at: now })
+      .eq('phone', phone)
+      .is('consumed_at', null)
+      .gt('expires_at', now);
+
+    const { error: insertError } = await supabase.from('phone_otp_codes').insert({
+      id: otpId,
+      phone,
+      otp_hash: hashOtp(otp),
+      expires_at: expiresAt,
+      attempts: 0,
+      created_at: now,
+    });
+
+    if (insertError) throw insertError;
+
+    if (process.env.NODE_ENV !== 'production') {
+      logger.info('╔══════════════════════════════════════════════╗');
+      logger.info(`║  📱 OTP for ${phone}: [ ${otp} ]  ║`);
+      logger.info('╚══════════════════════════════════════════════╝');
+    } else {
+      logger.info(`[AUTH][SUPABASE] OTP generated for ${phone}`);
+    }
+
+    const allowOtpInResponse = process.env.OTP_RETURN_IN_RESPONSE == null 
+      ? true 
+      : process.env.OTP_RETURN_IN_RESPONSE.toLowerCase() === 'true';
+
+    return res.json({
+      success: true,
+      message: 'OTP generated successfully',
+      phone,
+      expiresIn: 600,
+      otp: allowOtpInResponse ? otp : undefined,
+    });
+  } catch (error: any) {
+    logger.error(`[AUTH][SUPABASE] send-phone failed: ${error?.message ?? error}`);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// POST /otp/verify-phone
+router.post('/otp/verify-phone', async (req, res) => {
+  try {
+    const { phoneNumber, code } = req.body;
+    if (!phoneNumber || !code) {
+      return res.status(400).json({ success: false, error: 'phoneNumber and code are required' });
+    }
+
+    const phone = normalizePhone(String(phoneNumber));
+    
+    const nowIso = new Date().toISOString();
+    const { data: otpRecord, error } = await supabase
+      .from('phone_otp_codes')
+      .select('*')
+      .eq('phone', phone)
+      .is('consumed_at', null)
+      .gt('expires_at', nowIso)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !otpRecord) {
+      return res.status(400).json({
+        success: false,
+        error: 'No valid OTP found for this number. Please request a new one.',
+      });
+    }
+
+    const attempts = Number(otpRecord.attempts ?? 0);
+    if (attempts >= 5) {
+      await supabase
+        .from('phone_otp_codes')
+        .update({ consumed_at: nowIso })
+        .eq('id', otpRecord.id);
+
+      return res.status(429).json({
+        success: false,
+        error: 'Maximum OTP attempts exceeded. Request a new code.',
+      });
+    }
+
+    if (hashOtp(String(code).trim()) !== otpRecord.otp_hash) {
+      await supabase
+        .from('phone_otp_codes')
+        .update({ attempts: attempts + 1 })
+        .eq('id', otpRecord.id);
+
+      return res.status(400).json({
+        success: false,
+        error: 'Incorrect OTP. Try again.',
+      });
+    }
+
+    await supabase
+      .from('phone_otp_codes')
+      .update({
+        verified_at: nowIso,
+        consumed_at: nowIso,
+      })
+      .eq('id', otpRecord.id);
+
+    logger.info(`[AUTH][SUPABASE] ✅ OTP verified for ${phone}`);
+    return res.json({
+      success: true,
+      message: 'Phone verified successfully',
+      token: `znp_verified_${phone}_${Date.now()}`,
+      phone,
+    });
+  } catch (error: any) {
+    logger.error(`[AUTH][SUPABASE] verify-phone failed: ${error?.message ?? error}`);
     return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
