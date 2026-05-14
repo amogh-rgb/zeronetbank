@@ -1,19 +1,37 @@
 import { Router, Request, Response } from 'express';
+import { createHash } from 'crypto';
 import emailService from '../services/emailService';
 import logger from '../utils/logger';
-
-declare global {
-  var otpCache: Record<string, string>;
-}
+import { prisma } from '../services/db.service';
 
 const router = Router();
 
-// Generate OTP endpoint
+function hashOtp(otp: string): string {
+  return createHash('sha256').update(otp).digest('hex');
+}
+
+async function sendOtpEmailInBackground(
+  email: string,
+  otp: string,
+  purpose: 'login' | 'register' | 'transaction' | 'reset',
+  otpId: string,
+) {
+  try {
+    const gmailSent = await emailService.sendOTP(email, otp, purpose);
+    if (gmailSent) {
+      logger.info(`[EMAIL] OTP delivered via Gmail to ${email} (otpId: ${otpId})`);
+    } else {
+      logger.warn(`[EMAIL] OTP delivery failed via Gmail for ${email} (otpId: ${otpId})`);
+    }
+  } catch (error: any) {
+    logger.warn(`[EMAIL] Background OTP send failed for ${email} (otpId: ${otpId}): ${error?.message ?? error}`);
+  }
+}
+
 router.post('/send-otp', async (req: Request, res: Response) => {
   try {
     const { email, purpose } = req.body;
 
-    // Validate input
     if (!email || !purpose) {
       return res.status(400).json({
         success: false,
@@ -21,60 +39,121 @@ router.post('/send-otp', async (req: Request, res: Response) => {
       });
     }
 
-    // Validate email format
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedPurpose = String(purpose).trim().toLowerCase();
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(normalizedEmail)) {
       return res.status(400).json({
         success: false,
         error: 'Invalid email format',
       });
     }
 
-    // Validate purpose
     const validPurposes = ['login', 'register', 'transaction', 'reset'];
-    if (!validPurposes.includes(purpose)) {
+    if (!validPurposes.includes(normalizedPurpose)) {
       return res.status(400).json({
         success: false,
         error: 'Invalid purpose. Must be one of: ' + validPurposes.join(', '),
       });
     }
 
-    // Generate OTP
-    const otp = emailService.generateOTP();
-
-    // Store OTP keyed by otpId for verification
-    const otpId = `otp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    if (!global.otpCache) global.otpCache = {};
-    global.otpCache[otpId] = otp;
-
-    // Auto-cleanup after 10 minutes
-    setTimeout(() => { if (global.otpCache?.[otpId]) delete global.otpCache[otpId]; }, 600000);
-
-    // ── ALWAYS VISIBLE IN SERVER TERMINAL ────────────────────────────────
-    logger.info('╔══════════════════════════════════════════════════╗');
-    logger.info(`║  📧 EMAIL OTP for ${email}`);
-    logger.info(`║  Code: [ ${otp} ]  ID: ${otpId}`);
-    logger.info('╚══════════════════════════════════════════════════╝');
-    // ─────────────────────────────────────────────────────────────────────
-
-    // Try to send email — don't wait for it; failure must NOT block response
-    let emailDelivery = false;
-    try {
-      emailDelivery = await emailService.sendOTP(email, otp, purpose as any);
-    } catch (err: any) {
-      logger.warn(`Gmail send failed (non-fatal): ${err?.message ?? err}`);
-      emailDelivery = false;
+    if (normalizedPurpose === 'register') {
+      const existingAccount = await prisma.user.findFirst({
+        where: { email: normalizedEmail },
+        select: { id: true },
+      });
+      if (existingAccount) {
+        return res.status(409).json({
+          success: false,
+          error: 'Email is already registered. Please login instead.',
+        });
+      }
     }
 
-    // Always return success + OTP so the Flutter app can show it directly
+    if (normalizedPurpose === 'login' || normalizedPurpose === 'reset') {
+      const existingAccount = await prisma.user.findFirst({
+        where: { email: normalizedEmail },
+        select: { id: true },
+      });
+      if (!existingAccount) {
+        return res.status(404).json({
+          success: false,
+          error: 'No account found for this email address',
+        });
+      }
+    }
+
+    const otp = emailService.generateOTP();
+    const otpId = `otp_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const debugReturnCode = process.env.OTP_DEBUG_RETURN_CODE === 'true';
+    const debugAutoVerify = debugReturnCode &&
+        process.env.OTP_DEBUG_AUTO_VERIFY === 'true' &&
+        process.env.NODE_ENV !== 'production';
+
+    await prisma.emailOtp.deleteMany({
+      where: {
+        OR: [
+          { expiresAt: { lt: new Date() } },
+          { consumedAt: { not: null } },
+        ],
+      },
+    });
+
+    await prisma.emailOtp.updateMany({
+      where: {
+        email: normalizedEmail,
+        purpose: normalizedPurpose,
+        consumedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      data: {
+        consumedAt: new Date(),
+      },
+    });
+
+    await prisma.emailOtp.create({
+      data: {
+        id: otpId,
+        email: normalizedEmail,
+        purpose: normalizedPurpose,
+        otpHash: hashOtp(otp),
+        expiresAt,
+      },
+    });
+
+    logger.info(`[EMAIL] OTP generated for ${normalizedEmail} (otpId: ${otpId}, purpose: ${normalizedPurpose})`);
+
+    let debugVerificationToken: string | undefined;
+    if (process.env.OTP_DEBUG_RETURN_CODE === 'true' && debugAutoVerify) {
+      debugVerificationToken = `email_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+      await prisma.emailOtp.update({
+        where: { id: otpId },
+        data: {
+          verificationToken: debugVerificationToken,
+          verifiedAt: new Date(),
+        },
+      });
+      logger.info(`[EMAIL] OTP auto-verified for debug flow ${normalizedEmail} (otpId: ${otpId})`);
+    }
+
+    void sendOtpEmailInBackground(
+      normalizedEmail,
+      otp,
+      normalizedPurpose as 'login' | 'register' | 'transaction' | 'reset',
+      otpId,
+    );
+
     return res.status(200).json({
       success: true,
-      message: emailDelivery
-        ? 'OTP generated and sent to email'
-        : 'OTP generated (email delivery unavailable, use shown OTP)',
-      otp,          // shown in app UI — remove in production SMS-only flow
+      message: 'OTP generated. Check your email inbox shortly.',
       otpId,
       expiresIn: 600,
+      ...(debugReturnCode ? { otp } : {}),
+      ...(debugVerificationToken != null
+          ? { verificationToken: debugVerificationToken, autoVerified: true }
+          : {}),
     });
   } catch (error) {
     logger.error('Send OTP error:', error);
@@ -85,13 +164,10 @@ router.post('/send-otp', async (req: Request, res: Response) => {
   }
 });
 
-
-// Verify OTP endpoint
 router.post('/verify-otp', async (req: Request, res: Response) => {
   try {
     const { email, otp, otpId, purpose } = req.body;
 
-    // Validate input
     if (!email || !otp || !otpId || !purpose) {
       return res.status(400).json({
         success: false,
@@ -99,56 +175,89 @@ router.post('/verify-otp', async (req: Request, res: Response) => {
       });
     }
 
-    // Validate email format
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedPurpose = String(purpose).trim().toLowerCase();
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(normalizedEmail)) {
       return res.status(400).json({
         success: false,
         error: 'Invalid email format',
       });
     }
 
-    // Validate purpose
     const validPurposes = ['login', 'register', 'transaction', 'reset'];
-    if (!validPurposes.includes(purpose)) {
+    if (!validPurposes.includes(normalizedPurpose)) {
       return res.status(400).json({
         success: false,
         error: 'Invalid purpose',
       });
     }
 
-    // In memory store for OTPs (simplistic for demo but uses actual OTP)
-    // NOTE: This usually requires a database or Redis cache to store 'otpId' -> 'otp' pairs securely.
-    // For this implementation, since memory cache wasn't provided, 
-    // we should at least block the "any 6 digit OTP" hole and require them to match their received token.
-    // However, to enforce strict checking without a DB immediately, we must add a cache map here.
+    const otpRecord = await prisma.emailOtp.findUnique({
+      where: { id: String(otpId) },
+    });
 
-    // We will inject a simple memory cache above to store otpId -> otp mappings
-    const storedOtp = global.otpCache ? global.otpCache[otpId] : null;
-
-    if (!storedOtp) {
+    if (
+      !otpRecord ||
+      otpRecord.email !== normalizedEmail ||
+      otpRecord.purpose !== normalizedPurpose ||
+      otpRecord.expiresAt.getTime() <= Date.now() ||
+      otpRecord.consumedAt
+    ) {
+      logger.warn(`OTP verify rejected for ${normalizedEmail}: invalid record, expired record, mismatched email/purpose, or already consumed (otpId: ${otpId})`);
       return res.status(400).json({
         success: false,
         error: 'OTP expired or invalid OTP ID',
       });
     }
 
-    if (otp !== storedOtp) {
+    if ((otpRecord.attempts ?? 0) >= 5) {
+      await prisma.emailOtp.update({
+        where: { id: otpRecord.id },
+        data: {
+          consumedAt: otpRecord.consumedAt ?? new Date(),
+        },
+      });
+
+      logger.warn(`OTP verify rejected for ${normalizedEmail}: max attempts exceeded (otpId: ${otpRecord.id})`);
+      return res.status(429).json({
+        success: false,
+        error: 'Maximum OTP attempts exceeded. Request a new code.',
+      });
+    }
+
+    if (hashOtp(String(otp)) !== otpRecord.otpHash) {
+      await prisma.emailOtp.update({
+        where: { id: otpRecord.id },
+        data: {
+          attempts: { increment: 1 },
+        },
+      });
+
+      logger.warn(`OTP verify rejected for ${normalizedEmail}: invalid OTP code (otpId: ${otpRecord.id})`);
       return res.status(400).json({
         success: false,
         error: 'Invalid OTP code',
       });
     }
 
-    // Clear the OTP from cache once verified successfully
-    delete global.otpCache[otpId];
+    const verificationToken = `email_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
+    await prisma.emailOtp.update({
+      where: { id: otpRecord.id },
+      data: {
+        verificationToken,
+        verifiedAt: new Date(),
+      },
+    });
 
-    logger.info(`OTP verified successfully for ${email}`);
+    logger.info(`OTP verified successfully for ${normalizedEmail} (otpId: ${otpRecord.id})`);
 
     return res.status(200).json({
       success: true,
       message: 'OTP verified successfully',
       verifiedAt: new Date().toISOString(),
+      verificationToken,
     });
   } catch (error) {
     logger.error('Verify OTP error:', error);
@@ -314,7 +423,7 @@ router.post('/send-password-reset', async (req: Request, res: Response) => {
   }
 });
 
-// Test email configuration endpoint
+// Test email configuration endpoint (Original)
 router.get('/test-email', async (req: Request, res: Response) => {
   try {
     const testInfo = emailService.getTestAccountInfo();
@@ -324,7 +433,6 @@ router.get('/test-email', async (req: Request, res: Response) => {
         success: true,
         message: 'Email service configured',
         testAccount: testInfo.user,
-        testUrl: testInfo.url,
       });
     } else {
       return res.status(200).json({
@@ -341,6 +449,38 @@ router.get('/test-email', async (req: Request, res: Response) => {
   }
 });
 
-export default router;
+// DIRECT EMAIL TEST (Requested by user)
+router.get('/test', async (req: Request, res: Response) => {
+  console.log("Testing direct SendGrid delivery router");
+  try {
+    // Manually trigger the service test method which attempts a push to fromEmail
+    await emailService.testEmailConfiguration();
+    
+    // Attempt sending an OTP just to verify success logs
+    const testDest = process.env.SENDGRID_FROM_EMAIL || 'zeronetpay0@gmail.com';
+    const sent = await emailService.sendOTP(testDest, '123456', 'login');
+    
+    if (sent) {
+      console.log("SendGrid success response captured on GET /email/test");
+      return res.status(200).json({
+        success: true,
+        message: 'Test email delivered via SendGrid successfully',
+      });
+    } else {
+      console.error("SendGrid error response captured on GET /email/test");
+      return res.status(500).json({
+        success: false,
+        error: 'SendGrid failed to deliver test email',
+      });
+    }
+  } catch (error: any) {
+    console.error("SendGrid error:", error.response?.body || error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error',
+    });
+  }
+});
 
+export default router;
 

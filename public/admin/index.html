@@ -4,6 +4,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>ZeroNetBank Admin</title>
   <style>
     :root {
@@ -366,8 +369,8 @@
         </div>
         <div id="bankUrlAlt" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
       </div>
-      <button id="copyUrlBtn" class="secondary" style="font-size:14px;padding:10px 18px">📋 Copy URL</button>
-      <span id="copyFeedback" style="font-size:12px;color:var(--ok);display:none">✓ Copied!</span>
+      <button id="copyUrlBtn" class="secondary" style="font-size:14px;padding:10px 18px">Copy URL</button>
+      <span id="copyFeedback" style="font-size:12px;color:var(--ok);display:none">Copied</span>
     </div>
 
     <div class="row row-4" id="metricsRow">
@@ -456,6 +459,7 @@
         <thead>
           <tr>
             <th>Mobile</th>
+            <th>Email</th>
             <th>Name</th>
             <th>Status</th>
             <th>Balance</th>
@@ -510,7 +514,18 @@
   </div>
 
   <script>
+    const PUBLIC_API = 'https://zeronetpay-bank-production.up.railway.app';
+    const API_BASE_CANDIDATES = Array.from(new Set([
+      (window.location.origin && window.location.origin.startsWith('http')) ? window.location.origin : null,
+      'http://127.0.0.1:3001',
+      'http://172.24.64.1:3001',
+      'http://10.0.2.2:3001',
+      PUBLIC_API,
+    ].filter(Boolean)));
+    let activeApiBase = API_BASE_CANDIDATES[0];
     const API = '/api/admin';
+    const DEFAULT_ADMIN_TOKEN = 'zeronetpay_admin_key';
+    let adminToken = localStorage.getItem('znp_admin_token') || DEFAULT_ADMIN_TOKEN;
     let selectedPhone = null;
     let refreshTimer = null;
     let lastOverview = null;
@@ -522,22 +537,120 @@
       return isNaN(d.getTime()) ? '-' : d.toLocaleString();
     };
 
+    function getHeaders(extra = {}) {
+      return {
+        'x-admin-token': adminToken,
+        ...extra,
+      };
+    }
+
+    async function requestJson(path, options = {}) {
+      const originBase = (window.location.origin && window.location.origin.startsWith('http'))
+        ? window.location.origin
+        : null;
+      const candidates = Array.from(new Set([
+        originBase,
+        activeApiBase,
+        ...API_BASE_CANDIDATES,
+      ].filter(Boolean)));
+
+      let lastError = new Error('API request failed');
+      for (const base of candidates) {
+        const url = path.startsWith('http') ? path : `${base}${path}`;
+        let timeoutId = null;
+        let shouldRetry = false;
+        let retriedWithDefaultToken = false;
+        try {
+          const controller = new AbortController();
+          const timeoutMs = 7000;
+          timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+          const r = await fetch(url, {
+            method: options.method || 'GET',
+            headers: getHeaders(options.headers || {}),
+            body: options.body,
+            signal: controller.signal,
+            cache: 'no-store',
+          });
+
+          let data = {};
+          try {
+            data = await r.json();
+          } catch (_) {
+            // Keep empty object for non-JSON error payloads.
+          }
+
+          if (r.ok) {
+            activeApiBase = base;
+            return data;
+          }
+
+          const msg = data.error || data.message || `HTTP ${r.status}`;
+          lastError = new Error(msg);
+
+          // Recover from stale token stored in browser localStorage.
+          if (
+            r.status === 401
+            && adminToken !== DEFAULT_ADMIN_TOKEN
+            && !retriedWithDefaultToken
+          ) {
+            adminToken = DEFAULT_ADMIN_TOKEN;
+            localStorage.setItem('znp_admin_token', adminToken);
+            retriedWithDefaultToken = true;
+
+            const retry = await fetch(url, {
+              method: options.method || 'GET',
+              headers: getHeaders(options.headers || {}),
+              body: options.body,
+              cache: 'no-store',
+            });
+
+            let retryData = {};
+            try {
+              retryData = await retry.json();
+            } catch (_) {
+              // Keep empty object for non-JSON error payloads.
+            }
+
+            if (retry.ok) {
+              activeApiBase = base;
+              return retryData;
+            }
+
+            const retryMsg = retryData.error || retryData.message || `HTTP ${retry.status}`;
+            lastError = new Error(retryMsg);
+          }
+
+          // Retry only on transient/server errors via alternate base URL.
+          shouldRetry = r.status >= 500 || r.status === 429;
+          if (!shouldRetry) {
+            throw lastError;
+          }
+        } catch (e) {
+          lastError = e instanceof Error ? e : new Error(String(e));
+          if (!shouldRetry) {
+            throw lastError;
+          }
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId);
+        }
+      }
+
+      if (/failed to fetch|networkerror|aborterror/i.test(lastError.message || '')) {
+        throw new Error('Network error contacting bank API. Press Refresh once and try Add Money again.');
+      }
+      throw lastError;
+    }
+
     async function getJson(url) {
-      const r = await fetch(url);
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
-      return data;
+      return requestJson(url);
     }
 
     async function postJson(url, body) {
-      const r = await fetch(url, {
+      return requestJson(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
-      return data;
     }
 
     function setStatus(el, status) {
@@ -707,7 +820,7 @@
       try {
         const serverInfo = await getJson(`${API}/server-info`);
         if (serverInfo && serverInfo.success) {
-          document.getElementById('serverIp').textContent = `Live Bank URL: ${serverInfo.fullUrl}`;
+          document.getElementById('bankUrlDisplay').textContent = serverInfo.fullUrl;
         }
       } catch (_) { }
 
@@ -745,12 +858,13 @@
       const body = document.getElementById('usersRows');
       const users = data.users || [];
       if (!users.length) {
-        body.innerHTML = '<tr><td colspan="8" class="hint">No users found</td></tr>';
+        body.innerHTML = '<tr><td colspan="9" class="hint">No users found</td></tr>';
         return;
       }
 
       body.innerHTML = users.map(u => `<tr>
       <td>${u.phone}</td>
+      <td>${u.email || '-'}</td>
       <td>${u.displayName || '-'}</td>
       <td id="st-${u.phone}"></td>
       <td>${fmt(u.balance)}</td>
@@ -761,6 +875,7 @@
         <button class="secondary" onclick="selectUser('${u.phone}')">Transactions</button>
         <button class="ok" onclick="prefill('${u.phone}')">Add/Remove</button>
         <button onclick="openCustomerView('${u.phone}')">Customer View</button>
+        <button class="err" onclick="deleteUser('${u.phone}')">Delete</button>
       </td>
     </tr>`).join('');
 
@@ -804,18 +919,14 @@
       } catch (e) {
         hasError = true;
         lastError = e.message || String(e);
-        document.getElementById('usersRows').innerHTML = `<tr><td colspan="8" class="bad">Failed to load users: ${lastError}</td></tr>`;
+        document.getElementById('usersRows').innerHTML = `<tr><td colspan="9" class="bad">Failed to load users: ${lastError}</td></tr>`;
       }
 
       if (selectedPhone) {
         try { await loadUserTx(selectedPhone); } catch (_) { }
       }
 
-      if (hasError) {
-        const opMsg = document.getElementById('opMsg');
-        opMsg.className = 'bad';
-        opMsg.textContent = `Error: ${lastError}`;
-      }
+      // Keep operation feedback stable; API health is shown in the top status pill.
     }
 
     window.selectUser = async (phone) => {
@@ -832,10 +943,34 @@
       window.open(`/admin/customer.html?phone=${encodeURIComponent(phone)}`, '_blank');
     };
 
+    window.deleteUser = async (phone) => {
+      const confirmed = window.confirm(`Delete account ${phone}? Remaining balance will be returned to the bank vault and the user can register again.`);
+      if (!confirmed) return;
+
+      const opMsg = document.getElementById('opMsg');
+      try {
+        const result = await postJson(`${API}/users/${encodeURIComponent(phone)}/delete`, {});
+        opMsg.className = 'good';
+        opMsg.textContent = `Deleted ${phone}. Refunded ${fmt(result.refundedBalance)} to vault.`;
+        if (selectedPhone === phone) {
+          selectedPhone = null;
+          document.getElementById('txTitle').textContent = 'Select a user to inspect transactions';
+          document.getElementById('userTxRows').innerHTML = '<tr><td colspan="7" class="hint">User deleted</td></tr>';
+        }
+        await refreshAll();
+      } catch (e) {
+        opMsg.className = 'bad';
+        opMsg.textContent = e.message;
+      }
+    };
+
     async function runOperation(kind) {
-      const phone = document.getElementById('moneyPhone').value.trim();
+      const rawPhone = document.getElementById('moneyPhone').value.trim();
+      const phone = rawPhone.replace(/\D/g, '');
       const amount = Number(document.getElementById('moneyAmount').value);
       const opMsg = document.getElementById('opMsg');
+      const addBtn = document.getElementById('addBtn');
+      const removeBtn = document.getElementById('removeBtn');
 
       if (!phone || !Number.isFinite(amount) || amount <= 0) {
         opMsg.className = 'bad';
@@ -844,6 +979,8 @@
       }
 
       try {
+        addBtn.disabled = true;
+        removeBtn.disabled = true;
         const path = kind === 'add' ? 'add-money' : 'remove-money';
         const result = await postJson(`${API}/${path}`, { phone, amount });
         opMsg.className = 'good';
@@ -853,6 +990,9 @@
       } catch (e) {
         opMsg.className = 'bad';
         opMsg.textContent = e.message;
+      } finally {
+        addBtn.disabled = false;
+        removeBtn.disabled = false;
       }
     }
 
@@ -882,7 +1022,7 @@
 
     async function loadServerInfo() {
       try {
-        const info = await getJson('/api/server-info');
+        const info = await getJson(`${API}/server-info`);
         document.getElementById('bankUrlDisplay').textContent = info.bankUrl;
         const alts = (info.allInterfaces || [])
           .map(i => `<b>${i.iface}</b>: ${i.address}:${info.port}`).join(' &nbsp;|&nbsp; ');
@@ -895,6 +1035,13 @@
       }
     }
 
+    // Optional override from browser console without editing files:
+    // setAdminToken('your-real-token'); location.reload();
+    window.setAdminToken = (token) => {
+      adminToken = String(token || '').trim() || DEFAULT_ADMIN_TOKEN;
+      localStorage.setItem('znp_admin_token', adminToken);
+    };
+
     loadServerInfo();
     refreshAll().catch(() => { });
     refreshTimer = setInterval(() => refreshAll().catch(() => { }), 3500);
@@ -903,3 +1050,4 @@
 </body>
 
 </html>
+

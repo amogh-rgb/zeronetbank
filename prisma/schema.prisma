@@ -11,8 +11,13 @@ datasource db {
 model User {
   id          String   @id @default(uuid()) @db.Uuid
   phone       String   @unique
+  email       String?  @unique
+  emailVerified Boolean @default(false)
   displayName String?
   publicKey   String   @unique // P-256 Hex
+  pinHash     String?
+  pinUpdatedAt DateTime?
+  lastLoginAt DateTime?
   balance     Decimal  @default(0) @db.Decimal(18, 2)
   nonce       String   @default("") // Replay protection
   trustScore  Int      @default(100)
@@ -28,6 +33,7 @@ model User {
   receivedTransactions Transaction[] @relation("ReceiverUser")
 
   @@index([status, lastSeenAt])
+  @@index([email])
   @@index([createdAt])
   @@index([updatedAt])
 }
@@ -65,4 +71,22 @@ model BankState {
   vaultBalance Decimal  @default(1000000) @db.Decimal(18, 2)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model EmailOtp {
+  id                String   @id @default(cuid())
+  email             String
+  purpose           String
+  otpHash           String
+  expiresAt         DateTime
+  attempts          Int      @default(0)
+  verificationToken String?  @unique
+  verifiedAt        DateTime?
+  consumedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([email, purpose, expiresAt])
+  @@index([verificationToken])
+  @@index([consumedAt, expiresAt])
 }

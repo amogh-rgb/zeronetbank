@@ -203,7 +203,13 @@
 </div>
 
 <script>
-  const API = '/api/admin';
+  const PUBLIC_API = 'https://zeronetpay-bank-production.up.railway.app';
+  const API_BASE = (window.location.origin && window.location.origin.startsWith('http'))
+    ? window.location.origin
+    : PUBLIC_API;
+  const API = `${API_BASE}/api/admin`;
+  const DEFAULT_ADMIN_TOKEN = 'zeronetpay_admin_key';
+  let adminToken = localStorage.getItem('znp_admin_token') || DEFAULT_ADMIN_TOKEN;
   const fmt = (n) => Number(n || 0).toFixed(2);
   const time = (v) => {
     if (!v) return '-';
@@ -211,8 +217,15 @@
     return isNaN(d.getTime()) ? '-' : d.toLocaleString();
   };
 
+  function getHeaders(extra = {}) {
+    return {
+      'x-admin-token': adminToken,
+      ...extra,
+    };
+  }
+
   async function getJson(url) {
-    const r = await fetch(url);
+    const r = await fetch(url, { headers: getHeaders() });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
     return data;
@@ -280,7 +293,7 @@
     const u = data.user;
     const s = data.summary;
     document.getElementById('title').textContent = `Customer Analytics - ${u.phone}`;
-    document.getElementById('subTitle').textContent = `${u.displayName || 'Unnamed user'} | Trust ${u.trustScore} | Status ${u.status}`;
+    document.getElementById('subTitle').textContent = `${u.displayName || 'Unnamed user'} | ${u.email || 'No email'} | Trust ${u.trustScore} | Status ${u.status}`;
     document.getElementById('mBalance').textContent = fmt(u.balance);
     document.getElementById('mIn').textContent = fmt(s.incomingTotal);
     document.getElementById('mOut').textContent = fmt(s.outgoingTotal);
@@ -317,6 +330,11 @@
     document.getElementById('phoneInput').value = fromQuery;
     loadAnalytics().catch(() => {});
   }
+
+  window.setAdminToken = (token) => {
+    adminToken = String(token || '').trim() || DEFAULT_ADMIN_TOKEN;
+    localStorage.setItem('znp_admin_token', adminToken);
+  };
 </script>
 </body>
 </html>

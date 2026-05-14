@@ -7,6 +7,10 @@ const globalForPrisma = global as unknown as {
 export const prisma =
     globalForPrisma.prisma ||
     new PrismaClient({
+        transactionOptions: {
+            maxWait: Number(process.env.PRISMA_TRANSACTION_MAX_WAIT_MS || 60000),
+            timeout: Number(process.env.PRISMA_TRANSACTION_TIMEOUT_MS || 60000),
+        },
         log: [
             { emit: 'event', level: 'query' },
             { emit: 'stdout', level: 'error' },

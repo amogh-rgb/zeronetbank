@@ -16,10 +16,34 @@ const WalletIdentifierSchema = z.union([
     z.string().uuid("Must be a valid UUID wallet identifier"),
 ]);
 
+const EmailSchema = z.string().trim().email("Must be a valid email address");
+const PinSchema = z.string().regex(/^\d{6}$/, "PIN must be exactly 6 digits");
+
 export const RegisterSchema = z.object({
     phone: WalletIdentifierSchema,
     publicKey: HexSchema.length(130, "Must be 130 characters (Uncompressed P-256 Hex 04+...)"),
     displayName: z.string().trim().min(1).max(120).optional(),
+});
+
+export const AccountRegisterSchema = z.object({
+    phone: PhoneIdSchema,
+    email: EmailSchema,
+    displayName: z.string().trim().min(1).max(120),
+    publicKey: HexSchema.length(130, "Must be 130 characters (Uncompressed P-256 Hex 04+...)"),
+    pin: PinSchema,
+    verificationToken: z.string().trim().min(12),
+});
+
+export const AccountLoginSchema = z.object({
+    email: EmailSchema,
+    pin: PinSchema,
+    verificationToken: z.string().trim().min(12),
+});
+
+export const AccountResetPinSchema = z.object({
+    email: EmailSchema,
+    newPin: PinSchema,
+    verificationToken: z.string().trim().min(12),
 });
 
 export const OfflineTransactionSchema = z.object({

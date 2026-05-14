@@ -1,0 +1,19 @@
+# Keep deployment snapshot small and deterministic
+.git
+.gitignore
+node_modules
+logs
+legacy
+dev
+test
+tests
+secrets
+*.log
+*.sqlite
+*.bat
+cloudflared.exe
+*.md
+build_output.txt
+build_output.log
+build_final.txt
+tunnel.log

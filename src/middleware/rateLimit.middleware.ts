@@ -1,5 +1,16 @@
 import rateLimit from 'express-rate-limit';
 
+function readIntEnv(name: string, fallback: number): number {
+    const raw = process.env[name];
+    if (!raw) return fallback;
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+    return parsed;
+}
+
+const authWindowMs = readIntEnv('AUTH_RATE_LIMIT_WINDOW_MS', 60 * 60 * 1000);
+const authMaxRequests = readIntEnv('AUTH_RATE_LIMIT_MAX', 60);
+
 export const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 200, // Limit each IP to 200 requests per windowMs
@@ -12,8 +23,8 @@ export const apiLimiter = rateLimit({
 });
 
 export const authLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000, // 1 hour
-    max: 10, // Limit each IP to 5 create account requests per hour
+    windowMs: authWindowMs,
+    max: authMaxRequests,
     message: {
         status: 429,
         error: 'Too many accounts created from this IP, please try again after an hour',

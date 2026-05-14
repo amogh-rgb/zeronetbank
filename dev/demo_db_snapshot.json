@@ -1,0 +1,444 @@
+{
+  "generatedAt": "2026-04-18T06:40:49.748Z",
+  "counts": {
+    "users": 4,
+    "transactions": 40,
+    "emailOtps": 1
+  },
+  "users": [
+    {
+      "phone": "BANK_ADMIN",
+      "email": null,
+      "displayName": "Bank Admin",
+      "balance": 0,
+      "status": "ONLINE",
+      "updatedAt": "2026-04-18T06:40:48.833Z"
+    },
+    {
+      "phone": "BANK_VAULT",
+      "email": null,
+      "displayName": "Bank Vault",
+      "balance": 0,
+      "status": "ONLINE",
+      "updatedAt": "2026-04-18T06:40:48.826Z"
+    },
+    {
+      "phone": "9480139606",
+      "email": "amoghsram@gmail.com",
+      "displayName": "9480139606",
+      "balance": 15000,
+      "status": "ONLINE",
+      "updatedAt": "2026-04-18T06:37:37.562Z"
+    },
+    {
+      "phone": "8951621090",
+      "email": "abdulrazaqpakali786@gmail.com",
+      "displayName": "Abdul Razzaq",
+      "balance": 4000,
+      "status": "ONLINE",
+      "updatedAt": "2026-04-18T06:37:35.980Z"
+    }
+  ],
+  "transactions": [
+    {
+      "id": "qa_9480139606_1776494335544",
+      "from": "9480139606",
+      "to": "BANK_ADMIN",
+      "amount": 0,
+      "type": "QUEUE_ALERT",
+      "status": "PENDING_REVIEW",
+      "timestamp": "1776494335558",
+      "createdAt": "2026-04-18T06:38:55.560Z"
+    },
+    {
+      "id": "qa_9480139606_1776494263546",
+      "from": "9480139606",
+      "to": "BANK_ADMIN",
+      "amount": 0,
+      "type": "QUEUE_ALERT",
+      "status": "PENDING_REVIEW",
+      "timestamp": "1776494263559",
+      "createdAt": "2026-04-18T06:37:43.560Z"
+    },
+    {
+      "id": "qa_8951621090_1776493964139",
+      "from": "8951621090",
+      "to": "BANK_ADMIN",
+      "amount": 0,
+      "type": "QUEUE_ALERT",
+      "status": "PENDING_REVIEW",
+      "timestamp": "1776493968038",
+      "createdAt": "2026-04-18T06:32:48.039Z"
+    },
+    {
+      "id": "qa_9480139606_1776493959990",
+      "from": "9480139606",
+      "to": "BANK_ADMIN",
+      "amount": 0,
+      "type": "QUEUE_ALERT",
+      "status": "PENDING_REVIEW",
+      "timestamp": "1776493960007",
+      "createdAt": "2026-04-18T06:32:40.008Z"
+    },
+    {
+      "id": "NET-1776493855879-9480139606",
+      "from": "8951621090",
+      "to": "9480139606",
+      "amount": 6000,
+      "type": "TRANSFER",
+      "status": "CONFIRMED",
+      "timestamp": "1776493855879",
+      "createdAt": "2026-04-18T06:30:59.786Z"
+    },
+    {
+      "id": "admin_deposit_1776492947452_4rauml",
+      "from": "BANK_VAULT",
+      "to": "8951621090",
+      "amount": 10000,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776492947452",
+      "createdAt": "2026-04-18T06:15:47.453Z"
+    },
+    {
+      "id": "admin_deposit_1776492408852_wamn21",
+      "from": "BANK_VAULT",
+      "to": "9480139606",
+      "amount": 3000,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776492408852",
+      "createdAt": "2026-04-18T06:06:48.854Z"
+    },
+    {
+      "id": "admin_delete_1776492310003_01b2q1",
+      "from": "9480268832",
+      "to": "BANK_VAULT",
+      "amount": 22650,
+      "type": "ADMIN_ACCOUNT_DELETE",
+      "status": "CONFIRMED",
+      "timestamp": "1776492310003",
+      "createdAt": "2026-04-18T06:05:10.004Z"
+    },
+    {
+      "id": "NET-1776492274152-9480268832",
+      "from": "9480139606",
+      "to": "9480268832",
+      "amount": 2000,
+      "type": "TRANSFER",
+      "status": "CONFIRMED",
+      "timestamp": "1776492274152",
+      "createdAt": "2026-04-18T06:04:38.086Z"
+    },
+    {
+      "id": "qa_9480139606_1776492192440",
+      "from": "9480139606",
+      "to": "BANK_ADMIN",
+      "amount": 0,
+      "type": "QUEUE_ALERT",
+      "status": "PENDING_REVIEW",
+      "timestamp": "1776492196314",
+      "createdAt": "2026-04-18T06:03:16.315Z"
+    },
+    {
+      "id": "qa_9480139606_1776492070992",
+      "from": "9480139606",
+      "to": "BANK_ADMIN",
+      "amount": 0,
+      "type": "QUEUE_ALERT",
+      "status": "PENDING_REVIEW",
+      "timestamp": "1776492074930",
+      "createdAt": "2026-04-18T06:01:14.931Z"
+    },
+    {
+      "id": "admin_deposit_1776492044163_8gt7sa",
+      "from": "BANK_VAULT",
+      "to": "9480139606",
+      "amount": 3000,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776492044164",
+      "createdAt": "2026-04-18T06:00:44.165Z"
+    },
+    {
+      "id": "admin_deposit_1776492040718_6sz3au",
+      "from": "BANK_VAULT",
+      "to": "9480139606",
+      "amount": 3000,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776492040719",
+      "createdAt": "2026-04-18T06:00:40.719Z"
+    },
+    {
+      "id": "NET-1776492010654-9480268832",
+      "from": "9480139606",
+      "to": "9480268832",
+      "amount": 8000,
+      "type": "TRANSFER",
+      "status": "CONFIRMED",
+      "timestamp": "1776492010654",
+      "createdAt": "2026-04-18T06:00:14.603Z"
+    },
+    {
+      "id": "admin_deposit_1776491658320_4jzs89",
+      "from": "BANK_VAULT",
+      "to": "9480139606",
+      "amount": 3000,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776491658321",
+      "createdAt": "2026-04-18T05:54:18.322Z"
+    },
+    {
+      "id": "qa_9480139606_1776491535520",
+      "from": "9480139606",
+      "to": "BANK_ADMIN",
+      "amount": 0,
+      "type": "QUEUE_ALERT",
+      "status": "PENDING_REVIEW",
+      "timestamp": "1776491539400",
+      "createdAt": "2026-04-18T05:52:19.401Z"
+    },
+    {
+      "id": "NET-1776491391224-9480268832",
+      "from": "9480139606",
+      "to": "9480268832",
+      "amount": 5000,
+      "type": "TRANSFER",
+      "status": "CONFIRMED",
+      "timestamp": "1776491391224",
+      "createdAt": "2026-04-18T05:49:55.233Z"
+    },
+    {
+      "id": "admin_withdraw_1776491335978_0g45tx",
+      "from": "9480139606",
+      "to": "BANK_VAULT",
+      "amount": 3000,
+      "type": "ADMIN_WITHDRAW",
+      "status": "CONFIRMED",
+      "timestamp": "1776491335978",
+      "createdAt": "2026-04-18T05:48:55.979Z"
+    },
+    {
+      "id": "admin_withdraw_1776491335745_p0uji8",
+      "from": "9480139606",
+      "to": "BANK_VAULT",
+      "amount": 3000,
+      "type": "ADMIN_WITHDRAW",
+      "status": "CONFIRMED",
+      "timestamp": "1776491335745",
+      "createdAt": "2026-04-18T05:48:55.747Z"
+    },
+    {
+      "id": "admin_deposit_1776491327016_tnza7l",
+      "from": "BANK_VAULT",
+      "to": "9480139606",
+      "amount": 3000,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776491327016",
+      "createdAt": "2026-04-18T05:48:47.018Z"
+    },
+    {
+      "id": "admin_deposit_1776491326803_xjfk68",
+      "from": "BANK_VAULT",
+      "to": "9480139606",
+      "amount": 3000,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776491326803",
+      "createdAt": "2026-04-18T05:48:46.805Z"
+    },
+    {
+      "id": "admin_deposit_1776491320752_olnstq",
+      "from": "BANK_VAULT",
+      "to": "9480139606",
+      "amount": 3000,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776491320752",
+      "createdAt": "2026-04-18T05:48:40.753Z"
+    },
+    {
+      "id": "admin_withdraw_1776491309765_fdv79v",
+      "from": "9480139606",
+      "to": "BANK_VAULT",
+      "amount": 3000,
+      "type": "ADMIN_WITHDRAW",
+      "status": "CONFIRMED",
+      "timestamp": "1776491309765",
+      "createdAt": "2026-04-18T05:48:29.767Z"
+    },
+    {
+      "id": "admin_withdraw_1776491304905_wb3jbs",
+      "from": "9480139606",
+      "to": "BANK_VAULT",
+      "amount": 3000,
+      "type": "ADMIN_WITHDRAW",
+      "status": "CONFIRMED",
+      "timestamp": "1776491304905",
+      "createdAt": "2026-04-18T05:48:24.906Z"
+    },
+    {
+      "id": "admin_deposit_1776491257776_3f1qcs",
+      "from": "BANK_VAULT",
+      "to": "9480139606",
+      "amount": 3000,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776491257776",
+      "createdAt": "2026-04-18T05:47:37.777Z"
+    },
+    {
+      "id": "admin_deposit_1776491257561_ponwjs",
+      "from": "BANK_VAULT",
+      "to": "9480139606",
+      "amount": 3000,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776491257561",
+      "createdAt": "2026-04-18T05:47:37.563Z"
+    },
+    {
+      "id": "admin_deposit_1776491257434_ufno6z",
+      "from": "BANK_VAULT",
+      "to": "9480139606",
+      "amount": 3000,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776491257435",
+      "createdAt": "2026-04-18T05:47:37.436Z"
+    },
+    {
+      "id": "admin_deposit_1776491257297_usu2aj",
+      "from": "BANK_VAULT",
+      "to": "9480139606",
+      "amount": 3000,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776491257297",
+      "createdAt": "2026-04-18T05:47:37.299Z"
+    },
+    {
+      "id": "admin_deposit_1776490962572_3rektf",
+      "from": "BANK_VAULT",
+      "to": "9480139606",
+      "amount": 3000,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776490962572",
+      "createdAt": "2026-04-18T05:42:42.574Z"
+    },
+    {
+      "id": "admin_withdraw_1776490805527_l4mulj",
+      "from": "9480268832",
+      "to": "BANK_VAULT",
+      "amount": 150,
+      "type": "ADMIN_WITHDRAW",
+      "status": "CONFIRMED",
+      "timestamp": "1776490805527",
+      "createdAt": "2026-04-18T05:40:05.528Z"
+    },
+    {
+      "id": "admin_deposit_1776490805399_8rssr1",
+      "from": "BANK_VAULT",
+      "to": "9480268832",
+      "amount": 350,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776490805399",
+      "createdAt": "2026-04-18T05:40:05.400Z"
+    },
+    {
+      "id": "admin_withdraw_1776490752452_do8cr6",
+      "from": "9480268832",
+      "to": "BANK_VAULT",
+      "amount": 100,
+      "type": "ADMIN_WITHDRAW",
+      "status": "CONFIRMED",
+      "timestamp": "1776490752452",
+      "createdAt": "2026-04-18T05:39:12.454Z"
+    },
+    {
+      "id": "admin_deposit_1776490752274_xtjbte",
+      "from": "BANK_VAULT",
+      "to": "9480268832",
+      "amount": 100,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776490752274",
+      "createdAt": "2026-04-18T05:39:12.276Z"
+    },
+    {
+      "id": "admin_withdraw_1776490581328_noz86e",
+      "from": "9480268832",
+      "to": "BANK_VAULT",
+      "amount": 200,
+      "type": "ADMIN_WITHDRAW",
+      "status": "CONFIRMED",
+      "timestamp": "1776490581328",
+      "createdAt": "2026-04-18T05:36:21.330Z"
+    },
+    {
+      "id": "admin_deposit_1776490579086_wqmafy",
+      "from": "BANK_VAULT",
+      "to": "9480268832",
+      "amount": 400,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776490579086",
+      "createdAt": "2026-04-18T05:36:19.089Z"
+    },
+    {
+      "id": "admin_withdraw_1776490511990_vpollk",
+      "from": "9480268832",
+      "to": "BANK_VAULT",
+      "amount": 250,
+      "type": "ADMIN_WITHDRAW",
+      "status": "CONFIRMED",
+      "timestamp": "1776490511990",
+      "createdAt": "2026-04-18T05:35:11.991Z"
+    },
+    {
+      "id": "admin_deposit_1776490511811_z81xyr",
+      "from": "BANK_VAULT",
+      "to": "9480268832",
+      "amount": 500,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776490511811",
+      "createdAt": "2026-04-18T05:35:11.812Z"
+    },
+    {
+      "id": "admin_deposit_1776490215239_k2xp51",
+      "from": "BANK_VAULT",
+      "to": "9480268832",
+      "amount": 1000,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776490215239",
+      "createdAt": "2026-04-18T05:30:15.240Z"
+    },
+    {
+      "id": "admin_deposit_1776490047963_klcdct",
+      "from": "BANK_VAULT",
+      "to": "9480268832",
+      "amount": 3000,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776490047963",
+      "createdAt": "2026-04-18T05:27:27.965Z"
+    },
+    {
+      "id": "admin_deposit_1776489905536_3n6odm",
+      "from": "BANK_VAULT",
+      "to": "9480268832",
+      "amount": 3000,
+      "type": "ADMIN_DEPOSIT",
+      "status": "CONFIRMED",
+      "timestamp": "1776489905536",
+      "createdAt": "2026-04-18T05:25:05.540Z"
+    }
+  ]
+}

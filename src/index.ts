@@ -1,178 +1,217 @@
-import express from 'express';
+﻿import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { json } from 'body-parser';
 
 import AuthRoutes from './routes/auth.routes';
+import SupabaseAuthRoutes from './routes/auth.supabase.routes';
 import WalletRoutes from './routes/wallet.routes';
+import SupabaseWalletRoutes from './routes/wallet.supabase.routes';
 import AdminRoutes from './routes/admin.routes';
+import SupabaseAdminRoutes from './routes/admin.supabase.routes';
 import PublicRoutes from './routes/public.routes';
+import SupabasePublicRoutes from './routes/public.supabase.routes';
 import EmailRoutes from './routes/email.routes';
-import { adaptiveLimiter, syncLimiter, transactionLimiter } from './middleware/intelligentRateLimit.middleware';
-import { cacheMiddleware, userCacheMiddleware } from './middleware/cache.middleware';
+import SupabaseEmailRoutes from './routes/email.supabase.routes';
+import PaymentRoutes from './routes/payment.routes';
+import { testSupabaseConnection } from './lib/supabase';
+import {
+  adaptiveLimiter,
+  syncLimiter,
+  transactionLimiter,
+} from './middleware/intelligentRateLimit.middleware';
+import {
+  userCacheMiddleware,
+} from './middleware/cache.middleware';
 import { adminAuth } from './middleware/adminAuth.middleware';
 import logger from './utils/logger';
 import path from 'path';
-import os from 'os';
 import { ensureSystemState } from './services/system.service';
 import { connectPrismaWithRetry, prisma } from './services/db.service';
+import emailService from './services/emailService';
+import { isSupabaseMode } from './lib/runtimeMode';
+import { ensureSupabaseSystemState } from './lib/supabaseSystem';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '3000', 10);
+const PORT = parseInt(process.env.PORT || '8080', 10);
+app.set('trust proxy', 1);
+
+const allowedOrigins = new Set(
+  [
+    process.env.PUBLIC_BASE_URL,
+    'https://zeronetpay-bank-production.up.railway.app',
+    'https://api.zeronetpay.com',
+  ]
+      .filter((value): value is string => !!value && value.trim().length > 0)
+      .map((value) => value.trim().toLowerCase()),
+);
 
 // Middleware
-// NOTE: Admin panel uses inline script in public/admin/index.html.
-// Helmet default CSP blocks inline scripts (`script-src 'self'`), which makes
-// the admin UI appear static (buttons/refresh don't work). Disable CSP here
-// until admin assets are fully externalized.
+// NOTE: Admin panel still uses inline scripts in public/admin assets.
+// CSP remains disabled until those assets are fully externalized.
 app.use(
   helmet({
     contentSecurityPolicy: false,
   }),
 );
 app.use((_req, res, next) => {
-  // Ensure admin inline scripts are not blocked in local/dev runtime.
   res.removeHeader('Content-Security-Policy');
   res.removeHeader('Content-Security-Policy-Report-Only');
   next();
 });
-app.use(cors());
-app.use(json({ limit: '10mb' })); // Allow large payloads for sync
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow all local development origins
+      const allowedOrigins = [
+        'http://localhost:3000',
+        'http://localhost:8080',
+        'http://localhost:3001',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:8080',
+        'http://127.0.0.1:3001',
+        'capacitor://localhost',
+        'ionic://localhost',
+        // Production origins
+        process.env.PUBLIC_BASE_URL,
+        'https://zeronetpay-bank-production.up.railway.app',
+        'https://api.zeronetpay.com',
+      ].filter(Boolean);
+      
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      
+      callback(new Error('Origin not allowed by CORS'));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type', 
+      'Authorization', 
+      'X-Requested-With',
+      'Accept',
+      'Origin'
+    ],
+    optionsSuccessStatus: 204,
+  }),
+);
+app.use(json({ limit: '10mb' }));
 
 // Health checks (must stay unthrottled for client connectivity probes)
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.json({
     status: 'ACTIVE',
     service: 'ZeroNetBank Ledger Authority',
-    version: '2.0.0'
+    version: '2.0.0',
   });
 });
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'UP' });
-});
-
-// ── Live server info ──────────────────────────────────────────────────────
-// Re-reads network interfaces on every request. Prioritises Wi-Fi over
-// VMware/virtual adapters so the admin panel always shows the IP the phone
-// can actually reach.
-app.get('/api/server-info', (req, res) => {
-  const VIRTUAL = ['vmware', 'vmnet', 'virtualbox', 'vbox', 'hyper-v',
-    'bluetooth', 'isatap', 'teredo', 'loopback', 'tunnel'];
-
-  function rank(name: string): number {
-    const l = name.toLowerCase();
-    if (VIRTUAL.some(k => l.includes(k))) return 3;
-    if (l.includes('wi-fi') || l.includes('wifi') || l.includes('wlan') || l.includes('wireless')) return 0;
-    if (l.includes('ethernet') || l.includes('eth') || l.includes('en0') || l.includes('en1')) return 1;
-    return 2;
-  }
-
-  const candidates: { iface: string; address: string; rank: number }[] = [];
-  for (const name of Object.keys(os.networkInterfaces())) {
-    for (const net of os.networkInterfaces()[name] ?? []) {
-      if (net.family === 'IPv4' && !net.internal) {
-        candidates.push({ iface: name, address: net.address, rank: rank(name) });
-      }
-    }
-  }
-  candidates.sort((a, b) => a.rank - b.rank);
-
-  const primary = candidates[0];
-  const primaryIp = primary?.address ?? '127.0.0.1';
-  const bankUrl = `http://${primaryIp}:${PORT}`;
-  const isVirtual = primary?.rank === 3;
-
+app.get('/health', (_req, res) => {
   res.json({
-    primaryIp,
-    primaryIface: primary?.iface ?? 'unknown',
-    port: PORT,
-    bankUrl,
-    isVirtualAdapter: isVirtual,
-    allInterfaces: candidates.map(c => ({ iface: c.iface, address: c.address })),
-    localhost: `http://localhost:${PORT}`,
+    status: 'UP',
+    email: emailService.getStatus(),
   });
 });
-// ─────────────────────────────────────────────────────────────────────────
 
+app.get('/api/server-info', (_req, res) => {
+  res.json({
+    port: PORT,
+    publicBaseUrl: process.env.PUBLIC_BASE_URL || null,
+    status: 'UP',
+    email: emailService.getStatus(),
+  });
+});
 
-
-// Apply intelligent rate limiting and caching to different endpoints
-// Public endpoints with caching
-app.use('/api/public/directory', cacheMiddleware(300), adaptiveLimiter);
-
-// Auth endpoints with adaptive limiting
+// Apply rate limiting and caching
+app.use('/api/public/directory', adaptiveLimiter);
 app.use('/auth', adaptiveLimiter);
-
-// Wallet endpoints with specialized limiters
 app.use('/wallet/sync', syncLimiter);
 app.use('/wallet/transaction', transactionLimiter);
 app.use('/wallet', adaptiveLimiter);
-
-// Apply user-specific caching to sensitive endpoints
 app.use('/wallet/balance', userCacheMiddleware(60));
 app.use('/wallet/transactions', userCacheMiddleware(120));
 
 // Static files for admin dashboard UI
 app.use('/admin', express.static(path.join(__dirname, '../public/admin')));
 
+// Determine which wallet routes to use (Supabase or Prisma)
+const useSupabase = isSupabaseMode;
+const ActiveAuthRoutes = useSupabase ? SupabaseAuthRoutes : AuthRoutes;
+const ActiveWalletRoutes = useSupabase ? SupabaseWalletRoutes : WalletRoutes;
+const ActiveAdminRoutes = useSupabase ? SupabaseAdminRoutes : AdminRoutes;
+const ActivePublicRoutes = useSupabase ? SupabasePublicRoutes : PublicRoutes;
+const ActiveEmailRoutes = useSupabase ? SupabaseEmailRoutes : EmailRoutes;
+
+if (useSupabase) {
+  logger.info('[SERVER] Using Supabase for wallet operations');
+  // Test Supabase connection on startup
+  testSupabaseConnection().then(connected => {
+    if (connected) {
+      logger.info('[SERVER] Supabase connection verified');
+    } else {
+      logger.error('[SERVER] Supabase connection failed - falling back to Prisma');
+    }
+  });
+} else {
+  logger.info('[SERVER] Using Prisma/SQLite for wallet operations');
+}
+
 // API routes
-app.use('/auth', AuthRoutes);
-app.use('/wallet', WalletRoutes);
-app.use('/api/admin', adminAuth, AdminRoutes);
-app.use('/api/public', PublicRoutes);
-app.use('/email', EmailRoutes);
+app.use('/auth', ActiveAuthRoutes);
+app.use('/wallet', ActiveWalletRoutes);
+app.use('/api/admin', adminAuth, ActiveAdminRoutes);
+app.use('/api/public', ActivePublicRoutes);
+app.use('/', ActivePublicRoutes);
+app.use('/email', ActiveEmailRoutes);
+app.use('/api/payment', PaymentRoutes);
 
 // Compatibility routes (legacy app/backend clients)
-// Keep this while older clients still use /api/v1/* paths.
-app.use('/api/v1/auth', AuthRoutes);
-app.use('/api/v1/wallet', WalletRoutes);
+app.use('/api/v1/auth', ActiveAuthRoutes);
+app.use('/api/v1/wallet', ActiveWalletRoutes);
 app.post('/api/v1/wallet/register', (req, res, next) => {
-  // Alias legacy /api/v1/wallet/register -> /auth/register
   req.url = '/register';
-  (AuthRoutes as any).handle(req, res, next);
+  (ActiveAuthRoutes as any).handle(req, res, next);
 });
 
 if (require.main === module) {
-  connectPrismaWithRetry()
-    .then(() => ensureSystemState())
+  const bootstrap = useSupabase
+    ? ensureSupabaseSystemState()
+    : connectPrismaWithRetry().then(() => ensureSystemState());
+
+  bootstrap
     .catch((e) => logger.error(`System bootstrap failed: ${e}`))
     .finally(() => {
       app.listen(PORT, '0.0.0.0', () => {
-        // Find local IPv4 address
-        const nets = os.networkInterfaces();
-        let localIp = '127.0.0.1';
-        for (const name of Object.keys(nets)) {
-          for (const net of nets[name]!) {
-            // Skip over non-IPv4 and internal (i.e. 127.0.0.1) addresses
-            if (net.family === 'IPv4' && !net.internal) {
-              localIp = net.address;
-              break;
-            }
-          }
-        }
-
-        logger.info(`✅ ZeroNetBank Authority running successfully!`);
-        logger.info(`========================================================`);
-        logger.info(`💻 Local Access: http://localhost:${PORT}`);
-        logger.info(`🌐 Network Access (Enter this in App): http://${localIp}:${PORT}`);
-        logger.info(`========================================================`);
+        logger.info(`ZeroNetBank running on port ${PORT}`);
         logger.info(`Mode: ${process.env.NODE_ENV || 'development'}`);
+        // Run SMTP warmup after server starts to avoid startup blocking.
+        void emailService.warmup().catch((e) => logger.warn(`Email warmup failed: ${e}`));
       });
     });
 }
 
 process.on('SIGINT', async () => {
-  await prisma.$disconnect();
+  if (!useSupabase) {
+    await prisma.$disconnect();
+  }
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  await prisma.$disconnect();
+  if (!useSupabase) {
+    await prisma.$disconnect();
+  }
   process.exit(0);
 });
 

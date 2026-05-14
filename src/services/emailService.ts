@@ -1,15 +1,26 @@
 import nodemailer from 'nodemailer';
+import crypto from 'crypto';
 import logger from '../utils/logger';
 import { emailConfig } from '../config/emailConfig';
 
-// Email service configuration
-class EmailService {
+export class EmailService {
   private transporter!: nodemailer.Transporter;
-  private isConfigured: boolean = false;
+  private fallbackTransporter?: nodemailer.Transporter;
+  private isConfigured = false;
+  private smtpReady = false;
+  private lastReadyError: string | null = null;
+  private readonly readyPromise: Promise<void>;
+  private static instance: EmailService;
 
   constructor() {
-    // Initialize with your Gmail credentials
-    this.initializeTransporter();
+    this.readyPromise = this.initializeTransporter();
+  }
+
+  static getInstance(): EmailService {
+    if (!EmailService.instance) {
+      EmailService.instance = new EmailService();
+    }
+    return EmailService.instance;
   }
 
   private async initializeTransporter() {
@@ -20,64 +31,170 @@ class EmailService {
         return;
       }
 
-      // Configure with your Gmail account
-      this.transporter = nodemailer.createTransport({
-        service: emailConfig.service,
-        auth: {
-          user: emailConfig.user,
-          pass: emailConfig.pass,
-        },
+      // Primary SMTP transporter (from env config)
+      this.transporter = this.createTransporter({
+        host: emailConfig.host,
+        port: emailConfig.port,
+        secure: emailConfig.secure,
+      });
+
+      const fallbackPort = emailConfig.secure ? 587 : 465;
+      const fallbackSecure = !emailConfig.secure;
+
+      // Alternate SMTP mode fallback (SSL <-> STARTTLS)
+      this.fallbackTransporter = this.createTransporter({
+        host: emailConfig.host,
+        port: fallbackPort,
+        secure: fallbackSecure,
       });
       
-      logger.info(`Email service initialized with Gmail: ${emailConfig.user}`);
       this.isConfigured = true;
-      
-      // Test email sending
-      await this.testEmailConfiguration();
-      
+      logger.info(`Email service initialized (${emailConfig.service})`);
+      logger.info(`Primary SMTP: ${emailConfig.host}:${emailConfig.port} (secure: ${emailConfig.secure})`);
+      logger.info(`Fallback SMTP: ${emailConfig.host}:${fallbackPort} (secure: ${fallbackSecure})`);
+      await this.verifyTransporters();
     } catch (error) {
-      logger.error('Failed to initialize email service:', error);
+      logger.error('Failed to initialize email service:', error as any);
       this.isConfigured = false;
+      this.smtpReady = false;
+      this.lastReadyError =
+          error instanceof Error ? error.message : String(error);
     }
   }
 
-  // Generate OTP
-  generateOTP(length: number = 6): string {
+  async ensureReady(): Promise<void> {
+    await this.readyPromise;
+  }
+
+  async warmup(): Promise<void> {
+    await this.ensureReady();
+  }
+
+  getStatus() {
+    return {
+      configured: this.isConfigured,
+      smtpReady: this.smtpReady,
+      lastReadyError: this.lastReadyError,
+      fromEmail: emailConfig.fromEmail,
+      host: emailConfig.host,
+      port: emailConfig.port,
+    };
+  }
+
+  private createTransporter(options: { host: string; port: number; secure: boolean }): nodemailer.Transporter {
+    return nodemailer.createTransport({
+      host: options.host,
+      port: options.port,
+      secure: options.secure,
+      requireTLS: !options.secure,
+      auth: {
+        user: emailConfig.user,
+        pass: emailConfig.pass,
+      },
+      connectionTimeout: emailConfig.connectionTimeout,
+      greetingTimeout: emailConfig.greetingTimeout,
+      socketTimeout: emailConfig.socketTimeout,
+      tls: {
+        servername: options.host,
+      },
+    });
+  }
+
+  private async verifyTransporters(): Promise<void> {
+    const attempts = [
+      { transporter: this.transporter, label: 'primary SMTP' },
+      { transporter: this.fallbackTransporter, label: 'fallback SMTP' },
+    ];
+
+    let lastError: unknown;
+    for (const attempt of attempts) {
+      if (!attempt.transporter) continue;
+      try {
+        await attempt.transporter.verify();
+        this.smtpReady = true;
+        this.lastReadyError = null;
+        logger.info(`Email transport verified via ${attempt.label}`);
+        return;
+      } catch (error) {
+        lastError = error;
+        logger.warn(`Email transport verify failed via ${attempt.label}`, error as any);
+      }
+    }
+
+    this.smtpReady = false;
+    this.lastReadyError =
+      lastError instanceof Error ? lastError.message : String(lastError);
+  }
+
+  private async sendMailWithFallback(
+    mailOptions: nodemailer.SendMailOptions,
+    logContext: string,
+  ): Promise<boolean> {
+    const attempts = [
+      { transporter: this.transporter, label: `${logContext} via primary SMTP` },
+      { transporter: this.fallbackTransporter, label: `${logContext} via fallback SMTP` },
+    ];
+
+    let lastError: unknown;
+    for (const attempt of attempts) {
+      if (!attempt.transporter) continue;
+      try {
+        const info = await attempt.transporter.sendMail(mailOptions);
+        logger.info(`${attempt.label}: ${info.messageId}`);
+        return true;
+      } catch (error) {
+        lastError = error;
+        logger.warn(`${attempt.label} failed`, error as any);
+      }
+    }
+
+    logger.error(`${logContext} failed on all SMTP transports`, lastError as any);
+    return false;
+  }
+
+  generateOTP(length = 6): string {
     const digits = '0123456789';
     let otp = '';
-    for (let i = 0; i < length; i++) {
+    for (let i = 0; i < length; i += 1) {
       otp += digits[Math.floor(Math.random() * 10)];
     }
     return otp;
   }
 
-  // Send OTP for email verification
+  static async sendOTP(email: string, otp: string, purpose: 'login' | 'register' | 'transaction' | 'reset'): Promise<boolean> {
+    return EmailService.getInstance().sendOTP(email, otp, purpose);
+  }
+
   async sendOTP(email: string, otp: string, purpose: 'login' | 'register' | 'transaction' | 'reset'): Promise<boolean> {
+    console.log("Sending OTP to:", email);
+    
+    await this.ensureReady();
     if (!this.isConfigured) {
-      logger.warn('Email service not configured, skipping OTP send');
+      console.error('[EMAIL] Email service not configured');
       return false;
     }
-
+    
     try {
-      const subject = this.getOTPSubject(purpose);
-      const html = this.getOTPHTML(otp, purpose);
-
-      const info = await this.transporter.sendMail({
-        from: '"ZeroNetPay" <noreply@zeronetpay.com>',
+      const result = await this.sendMailWithFallback({
+        from: `"${emailConfig.fromName}" <${emailConfig.fromEmail}>`,
         to: email,
-        subject: subject,
-        html: html,
-      });
-
-      logger.info(`OTP sent to ${email} for ${purpose}: ${info.messageId}`);
-      return true;
-    } catch (error) {
-      logger.error(`Failed to send OTP to ${email}:`, error);
+        subject: this.getOTPSubject(purpose),
+        text: `Your ZeroNetPay OTP is ${otp}. It is valid for 10 minutes. Do not share this code with anyone.`,
+        html: this.getOTPHTML(otp, purpose),
+      }, `OTP to ${email} for ${purpose}`);
+      
+      if (result) {
+        console.log('SMTP send success:', result);
+      } else {
+        console.error('SMTP send error:', new Error('Fallback returns false (see logs)'));
+      }
+      return result;
+    } catch (error: any) {
+      console.error('SMTP send error:', error.response?.body || error);
       return false;
     }
   }
 
-  // Send transaction confirmation
   async sendTransactionConfirmation(email: string, transactionDetails: {
     id: string;
     amount: number;
@@ -85,100 +202,76 @@ class EmailService {
     timestamp: Date;
     type: 'sent' | 'received';
   }): Promise<boolean> {
+    await this.ensureReady();
     if (!this.isConfigured) {
       logger.warn('Email service not configured, skipping transaction confirmation');
       return false;
     }
 
-    try {
-      const subject = `ZeroNetPay - Transaction ${transactionDetails.type === 'sent' ? 'Sent' : 'Received'}`;
-      const html = this.getTransactionHTML(transactionDetails);
-
-      const info = await this.transporter.sendMail({
-        from: '"ZeroNetPay" <noreply@zeronetpay.com>',
-        to: email,
-        subject: subject,
-        html: html,
-      });
-
-      logger.info(`Transaction confirmation sent to ${email}: ${info.messageId}`);
-      return true;
-    } catch (error) {
-      logger.error(`Failed to send transaction confirmation to ${email}:`, error);
-      return false;
-    }
+    return this.sendMailWithFallback({
+      from: `"${emailConfig.fromName}" <${emailConfig.fromEmail}>`,
+      to: email,
+      subject: `ZeroNetPay - Transaction ${transactionDetails.type === 'sent' ? 'Sent' : 'Received'}`,
+      html: this.getTransactionHTML(transactionDetails),
+    }, `Transaction confirmation to ${email}`);
   }
 
-  // Send login alert
   async sendLoginAlert(email: string, loginDetails: {
     timestamp: Date;
     device: string;
     location?: string;
     ip?: string;
   }): Promise<boolean> {
+    await this.ensureReady();
     if (!this.isConfigured) {
       logger.warn('Email service not configured, skipping login alert');
       return false;
     }
 
-    try {
-      const subject = 'ZeroNetPay - New Login Alert';
-      const html = this.getLoginAlertHTML(loginDetails);
-
-      const info = await this.transporter.sendMail({
-        from: '"ZeroNetPay Security" <security@zeronetpay.com>',
-        to: email,
-        subject: subject,
-        html: html,
-      });
-
-      logger.info(`Login alert sent to ${email}: ${info.messageId}`);
-      return true;
-    } catch (error) {
-      logger.error(`Failed to send login alert to ${email}:`, error);
-      return false;
-    }
+    return this.sendMailWithFallback({
+      from: `"${emailConfig.fromName} Security" <${emailConfig.fromEmail}>`,
+      to: email,
+      subject: 'ZeroNetPay - New Login Alert',
+      html: this.getLoginAlertHTML(loginDetails),
+    }, `Login alert to ${email}`);
   }
 
-  // Send password reset email
+  async sendWelcomeBackEmail(email: string, payload: { username: string; phone: string; balance?: number }): Promise<boolean> {
+    await this.ensureReady();
+    if (!this.isConfigured) {
+      logger.warn('Email service not configured, skipping welcome-back email');
+      return false;
+    }
+
+    return this.sendMailWithFallback({
+      from: `"${emailConfig.fromName}" <${emailConfig.fromEmail}>`,
+      to: email,
+      subject: 'Welcome back to ZeroNetPay',
+      html: this.getWelcomeBackHTML(payload),
+    }, `Welcome-back email to ${email}`);
+  }
+
   async sendPasswordReset(email: string, resetToken: string): Promise<boolean> {
+    await this.ensureReady();
     if (!this.isConfigured) {
       logger.warn('Email service not configured, skipping password reset');
       return false;
     }
 
-    try {
-      const subject = 'ZeroNetPay - Password Reset';
-      const html = this.getPasswordResetHTML(resetToken);
-
-      const info = await this.transporter.sendMail({
-        from: '"ZeroNetPay Support" <support@zeronetpay.com>',
-        to: email,
-        subject: subject,
-        html: html,
-      });
-
-      logger.info(`Password reset sent to ${email}: ${info.messageId}`);
-      return true;
-    } catch (error) {
-      logger.error(`Failed to send password reset to ${email}:`, error);
-      return false;
-    }
+    return this.sendMailWithFallback({
+      from: `"${emailConfig.fromName} Support" <${emailConfig.fromEmail}>`,
+      to: email,
+      subject: 'ZeroNetPay - Password Reset',
+      html: this.getPasswordResetHTML(resetToken),
+    }, `Password reset to ${email}`);
   }
 
-  // HTML templates
   private getOTPSubject(purpose: 'login' | 'register' | 'transaction' | 'reset'): string {
     switch (purpose) {
-      case 'login':
-        return 'ZeroNetPay - Login OTP';
-      case 'register':
-        return 'ZeroNetPay - Email Verification';
-      case 'transaction':
-        return 'ZeroNetPay - Transaction OTP';
-      case 'reset':
-        return 'ZeroNetPay - Password Reset OTP';
-      default:
-        return 'ZeroNetPay - Verification Code';
+      case 'login': return 'ZeroNetPay - Login OTP';
+      case 'register': return 'ZeroNetPay - Email Verification';
+      case 'transaction': return 'ZeroNetPay - Transaction OTP';
+      case 'reset': return 'ZeroNetPay - PIN Reset OTP';
     }
   }
 
@@ -187,275 +280,131 @@ class EmailService {
       login: 'login to your account',
       register: 'verify your email address',
       transaction: 'authorize your transaction',
-      reset: 'reset your password'
-    };
+      reset: 'reset your wallet PIN',
+    }[purpose];
 
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>ZeroNetPay Verification</title>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #1565C0; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background: #f9f9f9; }
-          .otp { font-size: 32px; font-weight: bold; color: #1565C0; text-align: center; padding: 20px; background: white; border-radius: 8px; margin: 20px 0; }
-          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
-          .warning { background: #fff3cd; border: 1px solid #ffeaa7; padding: 10px; border-radius: 4px; margin: 10px 0; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>ZeroNetPay</h1>
-            <p>Secure Digital Wallet</p>
-          </div>
-          <div class="content">
-            <h2>Email Verification</h2>
-            <p>Use the following OTP to ${purposeText[purpose]}:</p>
-            <div class="otp">${otp}</div>
-            <div class="warning">
-              <strong>Security Notice:</strong> This OTP will expire in 10 minutes. Never share this code with anyone.
-            </div>
-            <p>If you didn't request this verification, please ignore this email.</p>
-          </div>
-          <div class="footer">
-            <p>&copy; 2024 ZeroNetPay. All rights reserved.</p>
-            <p>This is an automated message. Please do not reply to this email.</p>
-          </div>
+    return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ZeroNetPay OTP</title></head>
+<body style="margin:0;padding:0;background:#eef4ff;font-family:Arial,sans-serif;color:#0f172a;">
+  <div style="max-width:640px;margin:0 auto;padding:24px;">
+    <div style="background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 12px 30px rgba(15,61,145,0.12);">
+      <div style="background:linear-gradient(135deg,#0f3d91,#2f6bff);padding:28px;text-align:center;color:#fff;">
+        <h1 style="margin:0;font-size:28px;">ZeroNetPay</h1>
+        <p style="margin:10px 0 0;opacity:.9;">Secure wallet verification</p>
+      </div>
+      <div style="padding:28px;">
+        <p style="margin:0 0 18px;font-size:16px;">Use this OTP to ${purposeText}.</p>
+        <div style="margin:24px 0;padding:20px;border-radius:16px;background:#f8fbff;border:1px solid #d8e7ff;text-align:center;">
+          <div style="font-size:36px;letter-spacing:8px;font-weight:700;color:#1565c0;">${otp}</div>
         </div>
-      </body>
-      </html>
-    `;
+        <p style="margin:0 0 12px;color:#475569;">This code expires in 10 minutes.</p>
+        <p style="margin:0;color:#b91c1c;font-weight:600;">Never share this OTP with anyone.</p>
+      </div>
+      <div style="padding:0 28px 28px;color:#64748B;font-size:12px;text-align:center;">ZeroNetPay security mail ? If you did not request this, you can ignore this email.</div>
+    </div>
+  </div>
+</body>
+</html>`;
   }
 
-  private getTransactionHTML(transaction: {
-    id: string;
-    amount: number;
-    recipient: string;
-    timestamp: Date;
-    type: 'sent' | 'received';
-  }): string {
-    const amount = (transaction.amount / 1000000).toFixed(2); // Convert from micros
-    const action = transaction.type === 'sent' ? 'sent to' : 'received from';
-
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>ZeroNetPay Transaction</title>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #1565C0; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background: #f9f9f9; }
-          .transaction-details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
-          .amount { font-size: 24px; font-weight: bold; color: #1565C0; }
-          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>ZeroNetPay</h1>
-            <p>Transaction Confirmation</p>
-          </div>
-          <div class="content">
-            <h2>Transaction ${transaction.type === 'sent' ? 'Sent' : 'Received'}</h2>
-            <div class="transaction-details">
-              <p><strong>Transaction ID:</strong> ${transaction.id}</p>
-              <p><strong>Amount:</strong> <span class="amount">$${amount}</span></p>
-              <p><strong>${transaction.type === 'sent' ? 'Recipient' : 'Sender'}:</strong> ${transaction.recipient}</p>
-              <p><strong>Date:</strong> ${transaction.timestamp.toLocaleString()}</p>
-            </div>
-            <p>This transaction has been successfully processed and recorded in your ledger.</p>
-          </div>
-          <div class="footer">
-            <p>&copy; 2024 ZeroNetPay. All rights reserved.</p>
-            <p>This is an automated message. Please do not reply to this email.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+  private getTransactionHTML(transaction: { id: string; amount: number; recipient: string; timestamp: Date; type: 'sent' | 'received'; }): string {
+    const amount = transaction.amount.toFixed(2);
+    return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#eef4ff;padding:24px;"><div style="max-width:620px;margin:0 auto;background:#fff;border-radius:18px;padding:24px;"><h2 style="color:#1565C0;">Transaction ${transaction.type === 'sent' ? 'Sent' : 'Received'}</h2><p><strong>Transaction ID:</strong> ${transaction.id}</p><p><strong>Amount:</strong> ?${amount}</p><p><strong>${transaction.type === 'sent' ? 'Recipient' : 'Sender'}:</strong> ${transaction.recipient}</p><p><strong>Date:</strong> ${transaction.timestamp.toLocaleString()}</p></div></body></html>`;
   }
 
-  private getLoginAlertHTML(loginDetails: {
-    timestamp: Date;
-    device: string;
-    location?: string;
-    ip?: string;
-  }): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>ZeroNetPay Login Alert</title>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #ff6b6b; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background: #f9f9f9; }
-          .alert { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px; margin: 20px 0; }
-          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>🔒 Security Alert</h1>
-            <p>New Login Detected</p>
-          </div>
-          <div class="content">
-            <div class="alert">
-              <strong>A new login was detected on your ZeroNetPay account:</strong>
-              <ul>
-                <li><strong>Time:</strong> ${loginDetails.timestamp.toLocaleString()}</li>
-                <li><strong>Device:</strong> ${loginDetails.device}</li>
-                ${loginDetails.location ? `<li><strong>Location:</strong> ${loginDetails.location}</li>` : ''}
-                ${loginDetails.ip ? `<li><strong>IP Address:</strong> ${loginDetails.ip}</li>` : ''}
-              </ul>
-            </div>
-            <p>If this was you, no action is needed. If you don't recognize this login, please secure your account immediately.</p>
-            <p><a href="https://yourapp.com/security" style="background: #1565C0; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Secure Account</a></p>
-          </div>
-          <div class="footer">
-            <p>&copy; 2024 ZeroNetPay. All rights reserved.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+  private getLoginAlertHTML(loginDetails: { timestamp: Date; device: string; location?: string; ip?: string; }): string {
+    return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#fff7ed;padding:24px;"><div style="max-width:620px;margin:0 auto;background:#fff;border-radius:18px;padding:24px;"><h2 style="color:#b91c1c;">New Login Alert</h2><p>We detected a login on your ZeroNetPay account.</p><ul><li><strong>Time:</strong> ${loginDetails.timestamp.toLocaleString()}</li><li><strong>Device:</strong> ${loginDetails.device}</li>${loginDetails.location ? `<li><strong>Location:</strong> ${loginDetails.location}</li>` : ''}${loginDetails.ip ? `<li><strong>IP:</strong> ${loginDetails.ip}</li>` : ''}</ul></div></body></html>`;
   }
 
   private getPasswordResetHTML(resetToken: string): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>ZeroNetPay Password Reset</title>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #1565C0; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background: #f9f9f9; }
-          .reset-code { font-size: 24px; font-weight: bold; color: #1565C0; text-align: center; padding: 20px; background: white; border-radius: 8px; margin: 20px 0; }
-          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>ZeroNetPay</h1>
-            <p>Password Reset</p>
-          </div>
-          <div class="content">
-            <h2>Password Reset Request</h2>
-            <p>Use the following reset code to reset your password:</p>
-            <div class="reset-code">${resetToken}</div>
-            <p>This code will expire in 30 minutes. If you didn't request a password reset, please ignore this email.</p>
-          </div>
-          <div class="footer">
-            <p>&copy; 2024 ZeroNetPay. All rights reserved.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+    return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#eef4ff;padding:24px;"><div style="max-width:620px;margin:0 auto;background:#fff;border-radius:18px;padding:24px;"><h2 style="color:#1565C0;">Reset Your ZeroNetPay PIN</h2><p>Use the following reset code:</p><div style="font-size:28px;font-weight:700;color:#1565C0;">${resetToken}</div></div></body></html>`;
   }
 
-  // Test email configuration
+  private getWelcomeBackHTML(payload: { username: string; phone: string; balance?: number }): string {
+    const balanceHtml = payload.balance != null ? `<p><strong>Available balance:</strong> ?${payload.balance.toFixed(2)}</p>` : '';
+    const dashboardLink = this.buildUserDashboardUrl(payload.phone);
+    const dashboardHtml = dashboardLink
+      ? `<p style="margin-top:16px;"><a href="${dashboardLink}" style="display:inline-block;background:#1565C0;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600;">Open Your ZeroNetPay Dashboard</a></p>`
+      : '';
+    return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#eef4ff;padding:24px;"><div style="max-width:620px;margin:0 auto;background:#fff;border-radius:18px;padding:24px;"><h2 style="color:#1565C0;">Welcome back, ${payload.username}!</h2><p>Your wallet linked to <strong>${payload.phone}</strong> is ready.</p>${balanceHtml}${dashboardHtml}</div></body></html>`;
+  }
+
   async testEmailConfiguration(): Promise<void> {
+    await this.ensureReady();
+    if (!this.isConfigured) return;
     try {
-      const testInfo = await this.transporter.sendMail({
-        from: '"ZeroNetPay" <noreply@zeronetpay.com>',
-        to: emailConfig.user,
+      const ok = await this.sendMailWithFallback({
+        from: `"${emailConfig.fromName}" <${emailConfig.fromEmail}>`,
+        to: emailConfig.fromEmail,
         subject: 'ZeroNetPay - Email Service Test',
+        text: 'This is a test email to verify the Gmail SMTP service is working correctly.',
         html: this.getTestEmailHTML(),
-      });
-      
-      logger.info(`Test email sent successfully to ${emailConfig.user}: ${testInfo.messageId}`);
+      }, 'SMTP self-test');
+      if (ok) logger.info('SMTP service test successful');
+      else logger.warn('SMTP service test failed');
     } catch (error) {
-      logger.error('Test email failed:', error);
+      logger.error('SMTP service test error:', error as any);
     }
   }
 
   private getTestEmailHTML(): string {
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>ZeroNetPay - Email Service Test</title>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #1565C0; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background: #f9f9f9; }
-          .success { background: #d4edda; color: #155724; padding: 15px; border-radius: 4px; text-align: center; }
-          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>🎉 ZeroNetPay</h1>
-            <p>Email Service Configuration</p>
-          </div>
-          <div class="content">
-            <div class="success">
-              <h2>✅ Email Service Successfully Configured!</h2>
-              <p>Gmail: ${emailConfig.user}</p>
-              <p>Status: Active and Ready</p>
-            </div>
-            <h3>Features Available:</h3>
-            <ul>
-              <li>✅ Login OTP verification</li>
-              <li>✅ Registration OTP verification</li>
-              <li>✅ Transaction OTP verification</li>
-              <li>✅ Password reset emails</li>
-              <li>✅ Transaction confirmations</li>
-              <li>✅ Login security alerts</li>
-            </ul>
-          </div>
-          <div class="footer">
-            <p>&copy; 2024 ZeroNetPay. All rights reserved.</p>
-            <p>Test email sent at: ${new Date().toLocaleString()}</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+    return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;padding:24px;"><div style="max-width:620px;margin:0 auto;background:#fff;border-radius:18px;padding:24px;"><h2 style="color:#1565C0;">ZeroNetPay Email Service Test</h2><p>Gmail: ${emailConfig.fromEmail}</p><p>Status: Active and Ready</p></div></body></html>`;
   }
 
-  // Check if email service is ready
-  isReady(): boolean {
-    return this.isConfigured;
-  }
-
-  // Get test account info (for development)
-  getTestAccountInfo(): { user: string; url: string } | null {
-    if (process.env.NODE_ENV === 'development') {
-      return {
-        user: emailConfig.user || 'not-configured',
-        url: 'https://ethereal.email/messages'
-      };
+  static async sendOTPEmail(email: string, otp: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const success = await EmailService.sendOTP(email, otp, 'login');
+      return { success, message: success ? 'OTP sent successfully' : 'Failed to send OTP' };
+    } catch (error) {
+      return { success: false, message: 'Internal server error' };
     }
-    return null;
+  }
+
+  static async sendWelcomeEmail(user: { username: string; vpa: string; email: string }): Promise<{ success: boolean; message: string }> {
+    try {
+      const instance = EmailService.getInstance();
+      await instance.ensureReady();
+      const sent = await instance.sendMailWithFallback({
+        from: `"${emailConfig.fromName}" <${emailConfig.fromEmail}>`,
+        to: user.email,
+        subject: 'Welcome to ZeroNetPay!',
+        html: instance.getWelcomeHTML(user),
+      }, `Welcome email to ${user.email}`);
+      return { success: sent, message: sent ? 'Welcome email sent successfully' : 'Failed to send welcome email' };
+    } catch {
+      return { success: false, message: 'Failed to send welcome email' };
+    }
+  }
+
+  private getWelcomeHTML(user: { username: string; vpa: string; email: string }): string {
+    const dashboardLink = this.buildUserDashboardUrl(user.vpa);
+    const dashboardHtml = dashboardLink
+      ? `<p style="margin-top:16px;"><a href="${dashboardLink}" style="display:inline-block;background:#1565C0;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600;">Open Your ZeroNetPay Dashboard</a></p>`
+      : '';
+    return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#eef4ff;padding:24px;"><div style="max-width:620px;margin:0 auto;background:#fff;border-radius:18px;padding:24px;"><h2 style="color:#1565C0;">Welcome to ZeroNetPay, ${user.username}!</h2><p>Your wallet is linked to <strong>${user.vpa}</strong>.</p><p>You can now receive money, sync your wallet, and send payments securely.</p>${dashboardHtml}</div></body></html>`;
+  }
+
+  private buildUserDashboardUrl(phone: string): string | null {
+    const baseUrl = process.env.PUBLIC_BASE_URL?.trim() || 'https://zeronetpay-bank-production.up.railway.app';
+    const secret = process.env.USER_DASHBOARD_SECRET || process.env.ADMIN_SECRET;
+    if (!secret) return null;
+
+    const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    const nonce = Math.random().toString(36).slice(2, 14);
+    const payload = `${phone}|${expiresAt}|${nonce}`;
+    const signature = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+    const token = `${expiresAt}.${nonce}.${signature}`;
+    return `${baseUrl}/user/${encodeURIComponent(phone)}/dashboard?token=${encodeURIComponent(token)}`;
+  }
+
+  getTestAccountInfo(): { user: string; url?: string } | null {
+    if (!this.isConfigured) return null;
+    return {
+      user: emailConfig.fromEmail || 'not-configured',
+    };
   }
 }
 
-// Create singleton instance
-const emailService = new EmailService();
-
+const emailService = EmailService.getInstance();
 export default emailService;

@@ -4,6 +4,7 @@ import logger from '../utils/logger';
 import os from 'os';
 import { ensureSystemState, getBankState, SYSTEM_ADMIN_PHONE, SYSTEM_VAULT_PHONE } from '../services/system.service';
 import { toMoneyNumber } from '../utils/money';
+import emailService from '../services/emailService';
 
 const router = Router();
 
@@ -11,6 +12,25 @@ function parseAmount(raw: any): number | null {
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) return null;
   return n;
+}
+
+function parsePhone(raw: any): string | null {
+  const input = raw?.toString()?.trim();
+  if (!input) return null;
+
+  const digits = input.replace(/\D/g, '');
+  if (digits.length < 6) return null;
+
+  // Accept +91xxxxxxxxxx or 0xxxxxxxxxx style input in admin panel.
+  if (digits.length > 15) return null;
+  if (digits.length === 12 && digits.startsWith('91')) {
+    return digits.slice(2);
+  }
+  if (digits.length === 11 && digits.startsWith('0')) {
+    return digits.slice(1);
+  }
+
+  return digits;
 }
 
 function formatTx(tx: any) {
@@ -83,6 +103,7 @@ router.get('/users', async (req, res) => {
           ? {
             OR: [
               { phone: { contains: q } },
+              { email: { contains: q } },
               { displayName: { contains: q } },
             ],
           }
@@ -92,6 +113,7 @@ router.get('/users', async (req, res) => {
       take: limit,
       select: {
         phone: true,
+        email: true,
         displayName: true,
         publicKey: true,
         balance: true,
@@ -145,6 +167,7 @@ router.get('/users/:phone/analytics', async (req, res) => {
       where: { phone },
       select: {
         phone: true,
+        email: true,
         displayName: true,
         publicKey: true,
         balance: true,
@@ -241,8 +264,92 @@ router.get('/users/:phone/analytics', async (req, res) => {
   }
 });
 
+router.post('/users/:phone/delete', async (req, res) => {
+  const phone = parsePhone(req.params.phone);
+  if (!phone) {
+    return res.status(400).json({ success: false, error: 'Invalid phone number' });
+  }
+
+  if ([SYSTEM_ADMIN_PHONE, SYSTEM_VAULT_PHONE].includes(phone)) {
+    return res.status(400).json({ success: false, error: 'System accounts cannot be deleted' });
+  }
+
+  try {
+    await ensureSystemState();
+    const user = await prisma.user.findUnique({
+      where: { phone },
+      select: {
+        id: true,
+        phone: true,
+        email: true,
+        displayName: true,
+        balance: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    const refundAmount = toMoneyNumber(user.balance);
+    const vaultUser = await prisma.user.findUnique({ where: { phone: SYSTEM_VAULT_PHONE } });
+
+    await prisma.$transaction(async (tx) => {
+      if (user.email) {
+        await tx.emailOtp.deleteMany({
+          where: { email: user.email },
+        });
+      }
+
+      if (refundAmount > 0) {
+        await tx.bankState.update({
+          where: { id: 1 },
+          data: {
+            vaultBalance: { increment: refundAmount },
+          },
+        });
+
+        await tx.transaction.create({
+          data: {
+            id: `admin_delete_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            from: phone,
+            to: SYSTEM_VAULT_PHONE,
+            fromUserId: user.id,
+            toUserId: vaultUser?.id ?? null,
+            amount: refundAmount,
+            signature: 'ADMIN_OPERATION',
+            timestamp: BigInt(Date.now()),
+            status: 'CONFIRMED',
+            type: 'ADMIN_ACCOUNT_DELETE',
+            description: JSON.stringify({
+              note: 'Account deleted by admin',
+              operator: 'admin_panel',
+              refundedBalance: refundAmount,
+            }),
+          },
+        });
+      }
+
+      await tx.user.delete({
+        where: { phone },
+      });
+    });
+
+    return res.json({
+      success: true,
+      phone,
+      email: user.email,
+      refundedBalance: refundAmount,
+      message: 'Account deleted successfully',
+    });
+  } catch (e: any) {
+    logger.error(`[ADMIN] delete-user ${e.message}`);
+    return res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 router.post('/add-money', async (req, res) => {
-  const phone = req.body?.phone?.toString()?.trim();
+  const phone = parsePhone(req.body?.phone);
   const amount = parseAmount(req.body?.amount);
   const note = req.body?.note?.toString()?.trim() || 'Admin deposit';
   if (!phone || amount == null) {
@@ -251,30 +358,34 @@ router.post('/add-money', async (req, res) => {
 
   try {
     await ensureSystemState();
-    const result = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.findUnique({ where: { phone } });
-      if (!user) throw new Error('User not found');
-      const state = await tx.bankState.findUniqueOrThrow({ where: { id: 1 } });
-      const vaultUser = await tx.user.findUnique({ where: { phone: SYSTEM_VAULT_PHONE } });
-      if (toMoneyNumber(state.vaultBalance) < amount) throw new Error('Bank vault has insufficient balance');
+    const user = await prisma.user.findUnique({ where: { phone } });
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+    const state = await prisma.bankState.findUniqueOrThrow({ where: { id: 1 } });
+    const vaultUser = await prisma.user.findUnique({ where: { phone: SYSTEM_VAULT_PHONE } });
+    if (toMoneyNumber(state.vaultBalance) < amount) {
+      return res.status(400).json({ success: false, error: 'Bank vault has insufficient balance' });
+    }
 
-      const updatedUser = await tx.user.update({
+    const txId = `admin_deposit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const now = new Date();
+    const [updatedUser, updatedState] = await prisma.$transaction([
+      prisma.user.update({
         where: { phone },
         data: {
           balance: { increment: amount },
           status: 'ONLINE',
-          lastSeenAt: new Date(),
+          lastSeenAt: now,
         },
-      });
-
-      const updatedState = await tx.bankState.update({
+      }),
+      prisma.bankState.update({
         where: { id: 1 },
         data: { vaultBalance: { decrement: amount } },
-      });
-
-      await tx.transaction.create({
+      }),
+      prisma.transaction.create({
         data: {
-          id: `admin_deposit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          id: txId,
           from: SYSTEM_VAULT_PHONE,
           to: phone,
           fromUserId: vaultUser?.id ?? null,
@@ -286,26 +397,34 @@ router.post('/add-money', async (req, res) => {
           type: 'ADMIN_DEPOSIT',
           description: JSON.stringify({ note, operator: 'admin_panel' }),
         },
-      });
+      }),
+    ]).then(([userResult, stateResult]) => [userResult, stateResult] as const);
 
-      return { updatedUser, updatedState };
-    });
+    if (user.email) {
+      void emailService.sendTransactionConfirmation(user.email, {
+        id: `ADMIN-DEPOSIT-${Date.now()}`,
+        amount,
+        recipient: phone,
+        timestamp: new Date(),
+        type: 'received',
+      });
+    }
 
     return res.json({
       success: true,
       phone,
       amount,
-      balance: toMoneyNumber(result.updatedUser.balance),
-      vaultBalance: toMoneyNumber(result.updatedState.vaultBalance),
+      balance: toMoneyNumber(updatedUser.balance),
+      vaultBalance: toMoneyNumber(updatedState.vaultBalance),
     });
   } catch (e: any) {
     logger.error(`[ADMIN] add-money ${e.message}`);
-    return res.status(400).json({ success: false, error: e.message });
+    return res.status(500).json({ success: false, error: e.message });
   }
 });
 
 router.post('/remove-money', async (req, res) => {
-  const phone = req.body?.phone?.toString()?.trim();
+  const phone = parsePhone(req.body?.phone);
   const amount = parseAmount(req.body?.amount);
   const note = req.body?.note?.toString()?.trim() || 'Admin withdrawal';
   if (!phone || amount == null) {
@@ -314,29 +433,32 @@ router.post('/remove-money', async (req, res) => {
 
   try {
     await ensureSystemState();
-    const result = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.findUnique({ where: { phone } });
-      if (!user) throw new Error('User not found');
-      if (toMoneyNumber(user.balance) < amount) throw new Error('User balance is insufficient');
-
-      const updatedUser = await tx.user.update({
+    const user = await prisma.user.findUnique({ where: { phone } });
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+    if (toMoneyNumber(user.balance) < amount) {
+      return res.status(400).json({ success: false, error: 'User balance is insufficient' });
+    }
+    const vaultUser = await prisma.user.findUnique({ where: { phone: SYSTEM_VAULT_PHONE } });
+    const txId = `admin_withdraw_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const now = new Date();
+    const [updatedUser, updatedState] = await prisma.$transaction([
+      prisma.user.update({
         where: { phone },
         data: {
           balance: { decrement: amount },
           status: 'ONLINE',
-          lastSeenAt: new Date(),
+          lastSeenAt: now,
         },
-      });
-
-      const updatedState = await tx.bankState.update({
+      }),
+      prisma.bankState.update({
         where: { id: 1 },
         data: { vaultBalance: { increment: amount } },
-      });
-      const vaultUser = await tx.user.findUnique({ where: { phone: SYSTEM_VAULT_PHONE } });
-
-      await tx.transaction.create({
+      }),
+      prisma.transaction.create({
         data: {
-          id: `admin_withdraw_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          id: txId,
           from: phone,
           to: SYSTEM_VAULT_PHONE,
           fromUserId: user.id,
@@ -348,21 +470,29 @@ router.post('/remove-money', async (req, res) => {
           type: 'ADMIN_WITHDRAW',
           description: JSON.stringify({ note, operator: 'admin_panel' }),
         },
-      });
+      }),
+    ]).then(([userResult, stateResult]) => [userResult, stateResult] as const);
 
-      return { updatedUser, updatedState };
-    });
+    if (user.email) {
+      void emailService.sendTransactionConfirmation(user.email, {
+        id: `ADMIN-WITHDRAW-${Date.now()}`,
+        amount,
+        recipient: 'ZeroNetPay Bank',
+        timestamp: new Date(),
+        type: 'sent',
+      });
+    }
 
     return res.json({
       success: true,
       phone,
       amount,
-      balance: toMoneyNumber(result.updatedUser.balance),
-      vaultBalance: toMoneyNumber(result.updatedState.vaultBalance),
+      balance: toMoneyNumber(updatedUser.balance),
+      vaultBalance: toMoneyNumber(updatedState.vaultBalance),
     });
   } catch (e: any) {
     logger.error(`[ADMIN] remove-money ${e.message}`);
-    return res.status(400).json({ success: false, error: e.message });
+    return res.status(500).json({ success: false, error: e.message });
   }
 });
 
@@ -481,19 +611,35 @@ router.post('/queue-issues/:id/reopen', async (req, res) => {
 
 router.get('/server-info', async (req, res) => {
   try {
+    const publicBaseUrl = process.env.PUBLIC_BASE_URL || 'https://zeronetpay-bank-production.up.railway.app';
     const nets = os.networkInterfaces();
     let localIp = '127.0.0.1';
+    let primaryIface = 'loopback';
+    const allInterfaces: Array<{ iface: string; address: string }> = [];
     for (const name of Object.keys(nets)) {
       for (const net of nets[name]!) {
         // Skip over non-IPv4 and internal (i.e. 127.0.0.1) addresses
         if (net.family === 'IPv4' && !net.internal) {
+          allInterfaces.push({ iface: name, address: net.address });
           localIp = net.address;
+          primaryIface = name;
           break;
         }
       }
     }
     const port = process.env.PORT || '3000';
-    return res.json({ success: true, localIp, port, fullUrl: `http://${localIp}:${port}` });
+    const isProduction = (process.env.NODE_ENV || '').toLowerCase() === 'production';
+    return res.json({
+      success: true,
+      localIp,
+      port,
+      fullUrl: isProduction ? publicBaseUrl : `http://${localIp}:${port}`,
+      bankUrl: isProduction ? publicBaseUrl : `http://${localIp}:${port}`,
+      publicBaseUrl,
+      primaryIface,
+      allInterfaces,
+      isVirtualAdapter: false,
+    });
   } catch (e: any) {
     logger.error(`[ADMIN] server-info ${e.message}`);
     return res.status(500).json({ success: false, error: e.message });
