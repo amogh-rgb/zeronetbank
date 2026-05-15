@@ -26,9 +26,6 @@ export async function ensureSupabaseSystemState() {
     display_name: 'Bank Vault',
     balance: 0,
     trust_score: 100,
-    status: 'ONLINE',
-    is_frozen: false,
-    last_seen_at: new Date().toISOString(),
   });
 
   await upsertWallet({
@@ -39,9 +36,6 @@ export async function ensureSupabaseSystemState() {
     display_name: 'Bank Admin',
     balance: 0,
     trust_score: 100,
-    status: 'ONLINE',
-    is_frozen: false,
-    last_seen_at: new Date().toISOString(),
   });
 
   const { error } = await supabase.from('bank_state').upsert(

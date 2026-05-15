@@ -12,10 +12,9 @@ router.get('/directory', async (_req, res) => {
     await ensureSupabaseSystemState();
     const { data, error } = await supabase
       .from('wallets')
-      .select('phone,email,public_key,display_name,status,last_seen_at,is_frozen')
+      .select('phone,email,public_key,display_name')
       .neq('phone', SYSTEM_ADMIN_PHONE)
       .neq('phone', SYSTEM_VAULT_PHONE)
-      .eq('is_frozen', false)
       .order('phone', { ascending: true });
 
     if (error) throw error;
@@ -26,8 +25,6 @@ router.get('/directory', async (_req, res) => {
         email: row.email,
         publicKey: row.public_key,
         displayName: row.display_name,
-        status: row.status,
-        lastSeenAt: row.last_seen_at,
       })),
     );
   } catch (error: any) {

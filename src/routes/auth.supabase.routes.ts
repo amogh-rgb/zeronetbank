@@ -161,9 +161,6 @@ async function handleAccountRegister(req: any, res: any) {
           display_name: displayName.trim(),
           balance: 0,
           trust_score: 100,
-          status: 'ONLINE',
-          is_frozen: false,
-          last_seen_at: now,
         })
         .select('*')
         .single();
@@ -384,9 +381,6 @@ router.post('/register', async (req, res) => {
         display_name: displayName?.trim() || normalizedPhone,
         balance: 0,
         trust_score: 100,
-        status: 'ONLINE',
-        is_frozen: false,
-        last_seen_at: now,
       })
       .select('*')
       .single();

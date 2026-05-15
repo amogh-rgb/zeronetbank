@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
@@ -197,6 +197,30 @@ if (require.main === module) {
         logger.info(`Mode: ${process.env.NODE_ENV || 'development'}`);
         // Run SMTP warmup after server starts to avoid startup blocking.
         void emailService.warmup().catch((e) => logger.warn(`Email warmup failed: ${e}`));
+
+        // Keep-alive ping: Render free tier spins down after 15 min of inactivity.
+        // Ping ourselves every 14 min to stay warm so users don't hit cold-start delays.
+        const publicBaseUrl = process.env.PUBLIC_BASE_URL;
+        if (process.env.NODE_ENV === 'production' && publicBaseUrl) {
+          const PING_INTERVAL_MS = 14 * 60 * 1000; // 14 minutes
+          setInterval(async () => {
+            try {
+              const http = await import('http');
+              const https = await import('https');
+              const url = new URL(`${publicBaseUrl}/health`);
+              const client = url.protocol === 'https:' ? https : http;
+              client.get(url.href, (res) => {
+                logger.info(`[KEEP-ALIVE] Ping → ${res.statusCode}`);
+                res.resume();
+              }).on('error', (err) => {
+                logger.warn(`[KEEP-ALIVE] Ping failed: ${err.message}`);
+              });
+            } catch (e) {
+              logger.warn(`[KEEP-ALIVE] Ping error: ${e}`);
+            }
+          }, PING_INTERVAL_MS);
+          logger.info(`[KEEP-ALIVE] Ping scheduled every 14 min to ${publicBaseUrl}`);
+        }
       });
     });
 }
