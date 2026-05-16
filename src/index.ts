@@ -43,7 +43,7 @@ app.set('trust proxy', 1);
 const allowedOrigins = new Set(
   [
     process.env.PUBLIC_BASE_URL,
-    'https://zeronetpay-bank-production.up.railway.app',
+    'https://zeronetpay-bank.onrender.com',
     'https://api.zeronetpay.com',
   ]
       .filter((value): value is string => !!value && value.trim().length > 0)
@@ -78,7 +78,7 @@ app.use(
         'ionic://localhost',
         // Production origins
         process.env.PUBLIC_BASE_URL,
-        'https://zeronetpay-bank-production.up.railway.app',
+        'https://zeronetpay-bank.onrender.com',
         'https://api.zeronetpay.com',
       ].filter(Boolean);
       

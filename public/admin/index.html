@@ -514,11 +514,10 @@
   </div>
 
   <script>
-    const PUBLIC_API = 'https://zeronetpay-bank-production.up.railway.app';
+    const PUBLIC_API = 'https://zeronetpay-bank.onrender.com';
     const API_BASE_CANDIDATES = Array.from(new Set([
       (window.location.origin && window.location.origin.startsWith('http')) ? window.location.origin : null,
       'http://127.0.0.1:3001',
-      'http://172.24.64.1:3001',
       'http://10.0.2.2:3001',
       PUBLIC_API,
     ].filter(Boolean)));

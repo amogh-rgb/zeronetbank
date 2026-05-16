@@ -18,36 +18,61 @@ async function upsertWallet(payload: Record<string, unknown>) {
 }
 
 export async function ensureSupabaseSystemState() {
-  await upsertWallet({
-    wallet_id: SYSTEM_VAULT_PHONE,
-    phone: SYSTEM_VAULT_PHONE,
-    email: null,
-    public_key: SYSTEM_PUBLIC_KEY_VAULT,
-    display_name: 'Bank Vault',
-    balance: 0,
-    trust_score: 100,
-  });
+  // Check if system records exist before initializing (avoid resetting vault balance)
+  const { data: vaultWallet } = await supabase
+    .from('wallets')
+    .select('wallet_id')
+    .eq('wallet_id', SYSTEM_VAULT_PHONE)
+    .maybeSingle();
 
-  await upsertWallet({
-    wallet_id: SYSTEM_ADMIN_PHONE,
-    phone: SYSTEM_ADMIN_PHONE,
-    email: null,
-    public_key: SYSTEM_PUBLIC_KEY_ADMIN,
-    display_name: 'Bank Admin',
-    balance: 0,
-    trust_score: 100,
-  });
+  if (!vaultWallet) {
+    await upsertWallet({
+      wallet_id: SYSTEM_VAULT_PHONE,
+      phone: SYSTEM_VAULT_PHONE,
+      email: null,
+      public_key: SYSTEM_PUBLIC_KEY_VAULT,
+      display_name: 'Bank Vault',
+      balance: 0,
+      trust_score: 100,
+    });
+  }
 
-  const { error } = await supabase.from('bank_state').upsert(
-    {
-      id: 1,
-      vault_balance: 1000000,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'id' },
-  );
-  if (error) {
-    throw error;
+  const { data: adminWallet } = await supabase
+    .from('wallets')
+    .select('wallet_id')
+    .eq('wallet_id', SYSTEM_ADMIN_PHONE)
+    .maybeSingle();
+
+  if (!adminWallet) {
+    await upsertWallet({
+      wallet_id: SYSTEM_ADMIN_PHONE,
+      phone: SYSTEM_ADMIN_PHONE,
+      email: null,
+      public_key: SYSTEM_PUBLIC_KEY_ADMIN,
+      display_name: 'Bank Admin',
+      balance: 0,
+      trust_score: 100,
+    });
+  }
+
+  const { data: bankState } = await supabase
+    .from('bank_state')
+    .select('id')
+    .eq('id', 1)
+    .maybeSingle();
+
+  if (!bankState) {
+    const { error } = await supabase.from('bank_state').upsert(
+      {
+        id: 1,
+        vault_balance: 1000000,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' },
+    );
+    if (error) {
+      throw error;
+    }
   }
 }
 

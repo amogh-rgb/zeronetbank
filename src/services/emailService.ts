@@ -386,7 +386,7 @@ export class EmailService {
   }
 
   private buildUserDashboardUrl(phone: string): string | null {
-    const baseUrl = process.env.PUBLIC_BASE_URL?.trim() || 'https://zeronetpay-bank-production.up.railway.app';
+    const baseUrl = process.env.PUBLIC_BASE_URL?.trim() || 'https://zeronetpay-bank.onrender.com';
     const secret = process.env.USER_DASHBOARD_SECRET || process.env.ADMIN_SECRET;
     if (!secret) return null;
 

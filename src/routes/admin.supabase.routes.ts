@@ -345,13 +345,16 @@ router.post('/remove-money', async (req, res) => {
 });
 
 router.get('/server-info', async (_req, res) => {
-  const publicBaseUrl = process.env.PUBLIC_BASE_URL || 'https://your-render-service.onrender.com';
+  const publicBaseUrl = process.env.PUBLIC_BASE_URL || 'https://zeronetpay-bank.onrender.com';
   return res.json({
     success: true,
     publicBaseUrl,
     bankUrl: publicBaseUrl,
     fullUrl: publicBaseUrl,
     isSupabaseMode: true,
+    port: process.env.PORT || 8080,
+    primaryIface: 'Render Cloud',
+    allInterfaces: [{ iface: 'Public', address: 'zeronetpay-bank.onrender.com' }]
   });
 });
 
