@@ -31,27 +31,24 @@ export class EmailService {
         return;
       }
 
-      // Primary SMTP transporter (from env config)
+      // Try all common Gmail SMTP combinations to find one that works
+      // (Render free tier restricts certain outbound ports)
       this.transporter = this.createTransporter({
         host: emailConfig.host,
-        port: emailConfig.port,
-        secure: emailConfig.secure,
+        port: 587,
+        secure: false,
+        ignoreTLS: false,
       });
 
-      const fallbackPort = emailConfig.secure ? 587 : 465;
-      const fallbackSecure = !emailConfig.secure;
-
-      // Alternate SMTP mode fallback (SSL <-> STARTTLS)
       this.fallbackTransporter = this.createTransporter({
         host: emailConfig.host,
-        port: fallbackPort,
-        secure: fallbackSecure,
+        port: 465,
+        secure: true,
+        ignoreTLS: false,
       });
-      
+
       this.isConfigured = true;
       logger.info(`Email service initialized (${emailConfig.service})`);
-      logger.info(`Primary SMTP: ${emailConfig.host}:${emailConfig.port} (secure: ${emailConfig.secure})`);
-      logger.info(`Fallback SMTP: ${emailConfig.host}:${fallbackPort} (secure: ${fallbackSecure})`);
       await this.verifyTransporters();
     } catch (error) {
       logger.error('Failed to initialize email service:', error as any);
@@ -81,12 +78,12 @@ export class EmailService {
     };
   }
 
-  private createTransporter(options: { host: string; port: number; secure: boolean }): nodemailer.Transporter {
+  private createTransporter(options: { host: string; port: number; secure: boolean; ignoreTLS?: boolean }): nodemailer.Transporter {
     return nodemailer.createTransport({
       host: options.host,
       port: options.port,
       secure: options.secure,
-      requireTLS: !options.secure,
+      ignoreTLS: options.ignoreTLS ?? false,
       auth: {
         user: emailConfig.user,
         pass: emailConfig.pass,
@@ -96,6 +93,7 @@ export class EmailService {
       socketTimeout: emailConfig.socketTimeout,
       tls: {
         servername: options.host,
+        rejectUnauthorized: false,
       },
     });
   }

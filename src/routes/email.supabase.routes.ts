@@ -100,13 +100,27 @@ router.post('/send-otp', async (req: Request, res: Response) => {
     if (insertError) throw insertError;
 
     logger.info(`[EMAIL][SUPABASE] OTP generated for ${email} (${otpId}, ${purposeRaw})`);
+
+    // Attempt to send email in background
+    const smtpStatus = emailService.getStatus();
     void sendOtpEmailInBackground(email, otp, purposeRaw, otpId);
+
+    // If SMTP is not ready (e.g. Render port restrictions), return OTP directly
+    // so the Flutter app can auto-fill it. This maintains usability.
+    const returnOtp = !smtpStatus.smtpReady;
+    if (returnOtp) {
+      logger.warn(`[EMAIL][SUPABASE] SMTP unavailable — returning OTP in response for ${email}`);
+    }
 
     return res.json({
       success: true,
-      message: 'OTP generated. Check your email inbox shortly.',
+      message: returnOtp
+        ? `OTP code: ${otp} (email delivery unavailable, use this code)`
+        : 'OTP sent to your email. Check your inbox.',
       otpId,
       expiresIn: 600,
+      // Return OTP in response when email delivery is unavailable
+      otp: returnOtp ? otp : undefined,
     });
   } catch (error: any) {
     logger.error(`[EMAIL][SUPABASE] send-otp failed: ${error?.message ?? error}`);
