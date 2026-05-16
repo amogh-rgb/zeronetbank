@@ -79,6 +79,20 @@ export class EmailService {
   }
 
   private createTransporter(options: { host: string; port: number; secure: boolean; ignoreTLS?: boolean }): nodemailer.Transporter {
+    // If using Gmail, 'service: gmail' is the recommended way as it handles all the details correctly
+    if (emailConfig.host.includes('gmail.com')) {
+      return nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: emailConfig.user,
+          pass: emailConfig.pass,
+        },
+        connectionTimeout: emailConfig.connectionTimeout,
+        greetingTimeout: emailConfig.greetingTimeout,
+        socketTimeout: emailConfig.socketTimeout,
+      });
+    }
+
     return nodemailer.createTransport({
       host: options.host,
       port: options.port,

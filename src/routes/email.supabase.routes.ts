@@ -72,26 +72,16 @@ router.post('/send-otp', async (req: Request, res: Response) => {
       });
     }
 
-    const otp = emailService.generateOTP();
+    // Generate a local record for tracking and verification token issuance
     const otpId = randomUUID();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const now = new Date().toISOString();
-
-    const { error: invalidateError } = await supabase
-      .from('otp_codes')
-      .update({ consumed_at: now })
-      .eq('email', email)
-      .eq('purpose', purposeRaw)
-      .is('consumed_at', null)
-      .gt('expires_at', now);
-
-    if (invalidateError) throw invalidateError;
 
     const { error: insertError } = await supabase.from('otp_codes').insert({
       id: otpId,
       email,
       purpose: purposeRaw,
-      otp_hash: hashOtp(otp),
+      otp_hash: 'SUPABASE_AUTH_MANAGED', // We'll verify via Supabase Auth API
       expires_at: expiresAt,
       attempts: 0,
       created_at: now,
@@ -99,28 +89,37 @@ router.post('/send-otp', async (req: Request, res: Response) => {
 
     if (insertError) throw insertError;
 
-    logger.info(`[EMAIL][SUPABASE] OTP generated for ${email} (${otpId}, ${purposeRaw})`);
+    logger.info(`[EMAIL][SUPABASE] Requesting Supabase Auth OTP for ${email} (${otpId}, ${purposeRaw})`);
 
-    // Attempt to send email in background
-    const smtpStatus = emailService.getStatus();
-    void sendOtpEmailInBackground(email, otp, purposeRaw, otpId);
+    // Use Supabase's built-in email infrastructure to send the OTP
+    // This works on Render free tier because it's an HTTP call, not SMTP.
+    const { error: authError } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: purposeRaw === 'register',
+      },
+    });
 
-    // If SMTP is not ready (e.g. Render port restrictions), return OTP directly
-    // so the Flutter app can auto-fill it. This maintains usability.
-    const returnOtp = !smtpStatus.smtpReady;
-    if (returnOtp) {
-      logger.warn(`[EMAIL][SUPABASE] SMTP unavailable — returning OTP in response for ${email}`);
+    if (authError) {
+      logger.error(`[EMAIL][SUPABASE] Supabase Auth OTP request failed: ${authError.message}`);
+      // Fallback to local OTP if Supabase Auth fails (unlikely)
+      const otp = emailService.generateOTP();
+      await supabase.from('otp_codes').update({ otp_hash: hashOtp(otp) }).eq('id', otpId);
+      
+      return res.json({
+        success: true,
+        message: `OTP code: ${otp} (Email delivery failed, use this code)`,
+        otpId,
+        expiresIn: 600,
+        otp, // Return in response as last resort
+      });
     }
 
     return res.json({
       success: true,
-      message: returnOtp
-        ? `OTP code: ${otp} (email delivery unavailable, use this code)`
-        : 'OTP sent to your email. Check your inbox.',
+      message: 'OTP sent to your email. Check your inbox (and spam folder).',
       otpId,
       expiresIn: 600,
-      // Return OTP in response when email delivery is unavailable
-      otp: returnOtp ? otp : undefined,
     });
   } catch (error: any) {
     logger.error(`[EMAIL][SUPABASE] send-otp failed: ${error?.message ?? error}`);
@@ -181,16 +180,54 @@ router.post('/verify-otp', async (req: Request, res: Response) => {
       });
     }
 
-    if (hashOtp(otp) !== otpRecord.otp_hash) {
-      await supabase
-        .from('otp_codes')
-        .update({ attempts: attempts + 1 })
-        .eq('id', otpId);
-
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid OTP code',
+    // Verification Logic
+    if (otpRecord.otp_hash === 'SUPABASE_AUTH_MANAGED') {
+      // Verify via Supabase Auth API
+      logger.info(`[EMAIL][SUPABASE] Verifying Supabase Auth OTP for ${email}`);
+      
+      // Try 'email' type first (standard for signInWithOtp)
+      let { error: authError } = await supabase.auth.verifyOtp({
+        email,
+        token: otp,
+        type: 'email',
       });
+
+      if (authError) {
+        logger.warn(`[EMAIL][SUPABASE] Supabase Auth OTP verification ('email') failed: ${authError.message}. Trying 'signup'...`);
+        // Try 'signup' type (sometimes used for new users)
+        const { error: signupError } = await supabase.auth.verifyOtp({
+          email,
+          token: otp,
+          type: 'signup',
+        });
+        authError = signupError;
+      }
+
+      if (authError) {
+        logger.error(`[EMAIL][SUPABASE] Supabase Auth OTP verification failed: ${authError.message}`);
+        await supabase
+          .from('otp_codes')
+          .update({ attempts: attempts + 1 })
+          .eq('id', otpId);
+
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid or expired OTP code. Please check your email and try again.',
+        });
+      }
+    } else {
+      // Local verification (fallback)
+      if (hashOtp(otp) !== otpRecord.otp_hash) {
+        await supabase
+          .from('otp_codes')
+          .update({ attempts: attempts + 1 })
+          .eq('id', otpId);
+
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid OTP code',
+        });
+      }
     }
 
     const verificationToken = `email_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;

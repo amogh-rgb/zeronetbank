@@ -36,11 +36,12 @@ async function consumeVerifiedEmailToken(
     .eq('purpose', purpose)
     .eq('verification_token', verificationToken)
     .is('consumed_at', null)
-    .not('verified_at', 'is', 'null')
+    .not('verified_at', 'is', null)
     .gt('expires_at', nowIso)
     .maybeSingle();
 
   if (error || !otpRecord) {
+    logger.warn(`[AUTH] Token consumption failed for ${email}: ${error?.message || 'Token not found or expired'}`);
     return false;
   }
 
