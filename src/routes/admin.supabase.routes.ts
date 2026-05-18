@@ -227,19 +227,19 @@ router.post('/add-money', async (req, res) => {
     const now = new Date().toISOString();
     const txId = `admin_deposit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-    await supabase.from('wallets').update({
+    const { error: walletUpdateErr } = await supabase.from('wallets').update({
       balance: newBalance,
-      status: 'ONLINE',
-      last_seen_at: now,
       updated_at: now,
     }).eq('wallet_id', wallet.wallet_id);
+    if (walletUpdateErr) throw walletUpdateErr;
 
-    await supabase.from('bank_state').update({
+    const { error: bankUpdateErr } = await supabase.from('bank_state').update({
       vault_balance: newVaultBalance,
       updated_at: now,
     }).eq('id', 1);
+    if (bankUpdateErr) throw bankUpdateErr;
 
-    await supabase.from('transactions').insert({
+    const { error: txInsertErr } = await supabase.from('transactions').insert({
       tx_id: txId,
       sender_id: SYSTEM_VAULT_PHONE,
       receiver_id: wallet.wallet_id,
@@ -250,6 +250,7 @@ router.post('/add-money', async (req, res) => {
       settled_at: now,
       created_at: now,
     });
+    if (txInsertErr) throw txInsertErr;
 
     if (wallet.email) {
       void emailService.sendTransactionConfirmation(wallet.email, {
@@ -297,19 +298,19 @@ router.post('/remove-money', async (req, res) => {
     const now = new Date().toISOString();
     const txId = `admin_withdraw_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-    await supabase.from('wallets').update({
+    const { error: walletUpdateErr } = await supabase.from('wallets').update({
       balance: newBalance,
-      status: 'ONLINE',
-      last_seen_at: now,
       updated_at: now,
     }).eq('wallet_id', wallet.wallet_id);
+    if (walletUpdateErr) throw walletUpdateErr;
 
-    await supabase.from('bank_state').update({
+    const { error: bankUpdateErr } = await supabase.from('bank_state').update({
       vault_balance: newVaultBalance,
       updated_at: now,
     }).eq('id', 1);
+    if (bankUpdateErr) throw bankUpdateErr;
 
-    await supabase.from('transactions').insert({
+    const { error: txInsertErr } = await supabase.from('transactions').insert({
       tx_id: txId,
       sender_id: wallet.wallet_id,
       receiver_id: SYSTEM_VAULT_PHONE,
@@ -320,6 +321,7 @@ router.post('/remove-money', async (req, res) => {
       settled_at: now,
       created_at: now,
     });
+    if (txInsertErr) throw txInsertErr;
 
     if (wallet.email) {
       void emailService.sendTransactionConfirmation(wallet.email, {

@@ -182,8 +182,6 @@ async function handleAccountRegister(req: any, res: any) {
           email: normalizedEmail,
           display_name: displayName.trim(),
           public_key: publicKey,
-          status: 'ONLINE',
-          last_seen_at: now,
         })
         .eq('wallet_id', finalWallet.wallet_id)
         .select('*')
@@ -268,13 +266,7 @@ async function handleAccountLogin(req: any, res: any) {
       })
       .eq('id', user.id);
 
-    await supabase
-      .from('wallets')
-      .update({
-        status: 'ONLINE',
-        last_seen_at: now,
-      })
-      .eq('wallet_id', wallet.wallet_id);
+
 
     void emailService.sendWelcomeBackEmail(normalizedEmail, {
       username: wallet.display_name || wallet.phone,
@@ -319,14 +311,20 @@ router.post('/register', async (req, res) => {
         .update({
           public_key: publicKey,
           display_name: displayName?.trim() || existingByPhone.display_name,
-          status: 'ONLINE',
-          last_seen_at: now,
         })
         .eq('wallet_id', existingByPhone.wallet_id)
         .select('*')
         .single();
 
       if (error) throw error;
+
+      await supabase
+        .from('users')
+        .update({
+          status: 'ONLINE',
+          last_seen_at: now,
+        })
+        .eq('wallet_id', existingByPhone.wallet_id);
 
       return res.json({
         success: true,
@@ -350,14 +348,20 @@ router.post('/register', async (req, res) => {
           wallet_id: normalizedPhone,
           phone: normalizedPhone,
           display_name: displayName?.trim() || existingByKey.display_name,
-          status: 'ONLINE',
-          last_seen_at: now,
         })
         .eq('wallet_id', existingByKey.wallet_id)
         .select('*')
         .single();
 
       if (error) throw error;
+
+      await supabase
+        .from('users')
+        .update({
+          status: 'ONLINE',
+          last_seen_at: now,
+        })
+        .eq('wallet_id', existingByKey.wallet_id);
 
       return res.json({
         success: true,
