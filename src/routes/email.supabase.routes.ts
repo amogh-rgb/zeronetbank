@@ -72,7 +72,8 @@ router.post('/send-otp', async (req: Request, res: Response) => {
       });
     }
 
-    // Generate a local record for tracking and verification token issuance
+    const otp = emailService.generateOTP();
+    const hashed = hashOtp(otp);
     const otpId = randomUUID();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const now = new Date().toISOString();
@@ -81,7 +82,7 @@ router.post('/send-otp', async (req: Request, res: Response) => {
       id: otpId,
       email,
       purpose: purposeRaw,
-      otp_hash: 'SUPABASE_AUTH_MANAGED', // We'll verify via Supabase Auth API
+      otp_hash: hashed,
       expires_at: expiresAt,
       attempts: 0,
       created_at: now,
@@ -89,31 +90,8 @@ router.post('/send-otp', async (req: Request, res: Response) => {
 
     if (insertError) throw insertError;
 
-    logger.info(`[EMAIL][SUPABASE] Requesting Supabase Auth OTP for ${email} (${otpId}, ${purposeRaw})`);
-
-    // Use Supabase's built-in email infrastructure to send the OTP
-    // This works on Render free tier because it's an HTTP call, not SMTP.
-    const { error: authError } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        shouldCreateUser: purposeRaw === 'register',
-      },
-    });
-
-    if (authError) {
-      logger.error(`[EMAIL][SUPABASE] Supabase Auth OTP request failed: ${authError.message}`);
-      // Fallback to local OTP if Supabase Auth fails (unlikely)
-      const otp = emailService.generateOTP();
-      await supabase.from('otp_codes').update({ otp_hash: hashOtp(otp) }).eq('id', otpId);
-      
-      return res.json({
-        success: true,
-        message: `OTP code: ${otp} (Email delivery failed, use this code)`,
-        otpId,
-        expiresIn: 600,
-        otp, // Return in response as last resort
-      });
-    }
+    // Send the OTP email in the background using the 100% reliable Gmail HTTP Relay
+    void sendOtpEmailInBackground(email, otp, purposeRaw, otpId);
 
     return res.json({
       success: true,
