@@ -434,4 +434,17 @@ router.post('/run-sql', async (req, res) => {
   }
 });
 
+router.get('/env', async (_req, res) => {
+  const envKeys = Object.keys(process.env);
+  const debugInfo: any = {};
+  for (const key of envKeys) {
+    if (key.includes('PASS') || key.includes('KEY') || key.includes('SECRET') || key.includes('TOKEN') || key.includes('URL') || key.includes('DB')) {
+      debugInfo[key] = process.env[key] ? `${process.env[key]?.substring(0, 5)}... (len: ${process.env[key]?.length})` : 'undefined';
+    } else {
+      debugInfo[key] = process.env[key];
+    }
+  }
+  return res.json({ success: true, env: debugInfo });
+});
+
 export default router;
