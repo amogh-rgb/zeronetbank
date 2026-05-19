@@ -385,7 +385,7 @@ router.post('/run-sql', async (req, res) => {
     let lastError = '';
     
     for (const region of regions) {
-      const url = `postgresql://postgres.urjzxuxxszibrynupfga:zmNCqjkGIgtFrYlmFhYewniTdZCnirRL@aws-0-${region}.pooler.supabase.com:6543/postgres?pgbouncer=true`;
+      const url = `postgresql://postgres.urjzxuxxszibrynupfga:zmNCqjkGIgtFrYlmFhYewniTdZCnirRL@aws-0-${region}.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true`;
       logger.info(`[ADMIN] Testing region: ${region}`);
       
       let client;
