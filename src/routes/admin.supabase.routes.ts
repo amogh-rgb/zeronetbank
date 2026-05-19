@@ -373,6 +373,43 @@ router.post('/run-sql', async (req, res) => {
   }
 
   logger.info(`[ADMIN] Running SQL query: ${sql}`);
+
+  if (connectionString === 'auto-pooler') {
+    const regions = [
+      'ap-south-1', 'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1', 'ap-northeast-2',
+      'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2',
+      'eu-west-1', 'eu-west-2', 'eu-west-3', 'eu-central-1',
+      'ca-central-1', 'sa-east-1'
+    ];
+
+    let lastError = '';
+    
+    for (const region of regions) {
+      const url = `postgresql://postgres.urjzxuxxszibrynupfga:zmNCqjkGIgtFrYlmFhYewniTdZCnirRL@aws-0-${region}.pooler.supabase.com:6543/postgres?pgbouncer=true`;
+      logger.info(`[ADMIN] Testing region: ${region}`);
+      
+      let client;
+      try {
+        client = new PrismaClient({
+          datasources: { db: { url } }
+        });
+        const result = await client.$executeRawUnsafe(sql);
+        logger.info(`[ADMIN] 🎉 Successfully executed SQL on region ${region}!`);
+        await client.$disconnect();
+        return res.json({ success: true, region, result });
+      } catch (err: any) {
+        lastError = err.message;
+        logger.info(`[ADMIN] Region ${region} test failed: ${err.message.split('\n')[0]}`);
+      } finally {
+        if (client) {
+          await client.$disconnect();
+        }
+      }
+    }
+
+    return res.status(500).json({ success: false, error: `Auto-pooler failed to find correct region. Last error: ${lastError}` });
+  }
+
   let prismaInstance;
   try {
     if (connectionString) {
