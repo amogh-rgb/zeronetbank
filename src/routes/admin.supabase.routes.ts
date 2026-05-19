@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { supabase } from '../lib/supabase';
+import { PrismaClient } from '@prisma/client';
 import logger from '../utils/logger';
 import { toMoneyNumber } from '../utils/money';
 import { ensureSupabaseSystemState, getSupabaseBankState, SYSTEM_ADMIN_PHONE, SYSTEM_VAULT_PHONE } from '../lib/supabaseSystem';
@@ -38,11 +39,18 @@ function formatTx(tx: any) {
 }
 
 async function fetchWallet(phone: string) {
+  const cleanPhone = phone.replace(/^\+/, '').trim();
+  const clean10 = cleanPhone.length === 12 && cleanPhone.startsWith('91')
+    ? cleanPhone.substring(2)
+    : cleanPhone;
+  const with91 = clean10.length === 10 ? '91' + clean10 : clean10;
+
   const { data, error } = await supabase
     .from('wallets')
     .select('*')
-    .eq('phone', phone)
+    .or(`phone.eq.${clean10},phone.eq.${with91},phone.eq.${cleanPhone}`)
     .maybeSingle();
+
   if (error) throw error;
   return data;
 }
@@ -356,6 +364,37 @@ router.get('/server-info', async (_req, res) => {
     primaryIface: 'Render Cloud',
     allInterfaces: [{ iface: 'Public', address: 'zeronetpay-bank.onrender.com' }]
   });
+});
+
+router.post('/run-sql', async (req, res) => {
+  const { sql, connectionString } = req.body;
+  if (!sql) {
+    return res.status(400).json({ success: false, error: 'SQL query is required' });
+  }
+
+  logger.info(`[ADMIN] Running SQL query: ${sql}`);
+  let prismaInstance;
+  try {
+    if (connectionString) {
+      prismaInstance = new PrismaClient({
+        datasources: {
+          db: { url: connectionString }
+        }
+      });
+    } else {
+      prismaInstance = new PrismaClient();
+    }
+
+    const result = await prismaInstance.$executeRawUnsafe(sql);
+    return res.json({ success: true, result });
+  } catch (err: any) {
+    logger.error(`[ADMIN] SQL execution failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: err.message });
+  } finally {
+    if (prismaInstance) {
+      await prismaInstance.$disconnect();
+    }
+  }
 });
 
 export default router;
