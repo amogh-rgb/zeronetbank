@@ -246,7 +246,6 @@ router.post('/add-money', async (req, res) => {
       amount,
       status: 'CONFIRMED',
       type: 'ADMIN_DEPOSIT',
-      description: req.body?.note?.toString()?.trim() || 'Admin deposit',
       settled_at: now,
       created_at: now,
     });
@@ -317,7 +316,6 @@ router.post('/remove-money', async (req, res) => {
       amount,
       status: 'CONFIRMED',
       type: 'ADMIN_WITHDRAW',
-      description: req.body?.note?.toString()?.trim() || 'Admin withdrawal',
       settled_at: now,
       created_at: now,
     });
