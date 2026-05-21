@@ -12,6 +12,10 @@ export class EmailService {
   private readonly readyPromise: Promise<void>;
   private static instance: EmailService;
 
+  private get hasHttpRelay(): boolean {
+    return !!process.env.GMAIL_RELAY_URL?.trim();
+  }
+
   constructor() {
     this.readyPromise = this.initializeTransporter();
   }
@@ -25,7 +29,7 @@ export class EmailService {
 
   private async initializeTransporter() {
     try {
-      const hasRelay = !!process.env.GMAIL_RELAY_URL?.trim();
+      const hasRelay = this.hasHttpRelay;
       const hasSmtp = !!(emailConfig.user && emailConfig.pass);
 
       if (!hasSmtp && !hasRelay) {
@@ -36,6 +40,8 @@ export class EmailService {
 
       if (hasRelay) {
         this.isConfigured = true;
+        this.smtpReady = true;
+        this.lastReadyError = null;
         logger.info('Email service initialized with HTTP Gmail Relay');
       }
 
@@ -56,14 +62,18 @@ export class EmailService {
 
         this.isConfigured = true;
         logger.info(`Email service initialized with SMTP fallback (${emailConfig.service})`);
-        await this.verifyTransporters();
+        // Verify transporters in the background without blocking the initialization promise
+        this.verifyTransporters().catch((error) => {
+          logger.warn('Failed to verify SMTP transports on initialization:', error);
+        });
       }
     } catch (error) {
       logger.error('Failed to initialize email service SMTP:', error as any);
-      this.isConfigured = !!process.env.GMAIL_RELAY_URL?.trim();
-      this.smtpReady = false;
-      this.lastReadyError =
-          error instanceof Error ? error.message : String(error);
+      this.isConfigured = this.hasHttpRelay;
+      this.smtpReady = this.hasHttpRelay;
+      this.lastReadyError = this.hasHttpRelay
+        ? null
+        : (error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -83,7 +93,7 @@ export class EmailService {
       fromEmail: emailConfig.fromEmail,
       host: emailConfig.host,
       port: emailConfig.port,
-      hasHttpRelay: !!process.env.GMAIL_RELAY_URL?.trim(),
+      hasHttpRelay: this.hasHttpRelay,
     };
   }
 
@@ -141,6 +151,13 @@ export class EmailService {
       }
     }
 
+    if (this.hasHttpRelay) {
+      this.smtpReady = true;
+      this.lastReadyError = null;
+      logger.warn('SMTP verification failed, but HTTP Gmail Relay remains available');
+      return;
+    }
+
     this.smtpReady = false;
     this.lastReadyError =
       lastError instanceof Error ? lastError.message : String(lastError);
@@ -153,6 +170,10 @@ export class EmailService {
     const relayUrl = process.env.GMAIL_RELAY_URL?.trim();
     if (!relayUrl) return false;
 
+    const timeoutMs = Number.parseInt(process.env.GMAIL_RELAY_TIMEOUT_MS || '12000', 10);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
     try {
       logger.info(`[EMAIL] Sending ${logContext} via HTTP Gmail Relay...`);
       const response = await (global as any).fetch(relayUrl, {
@@ -160,6 +181,7 @@ export class EmailService {
         headers: {
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
         body: JSON.stringify({
           to: mailOptions.to,
           subject: mailOptions.subject,
@@ -184,6 +206,8 @@ export class EmailService {
     } catch (error: any) {
       logger.error(`[EMAIL] HTTP Gmail Relay request failed: ${error.message}`);
       return false;
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -192,9 +216,14 @@ export class EmailService {
     logContext: string,
   ): Promise<boolean> {
     // 1. Try Google HTTP Relay first if configured
-    if (process.env.GMAIL_RELAY_URL?.trim()) {
+    if (this.hasHttpRelay) {
       const ok = await this.sendViaHttpRelay(mailOptions, logContext);
       if (ok) return true;
+
+      if (!this.smtpReady) {
+        logger.warn(`[EMAIL] Skipping SMTP fallback for ${logContext} because relay is configured and SMTP is not ready`);
+        return false;
+      }
     }
 
     const attempts = [

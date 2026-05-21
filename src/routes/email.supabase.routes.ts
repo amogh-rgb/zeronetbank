@@ -43,6 +43,37 @@ async function findUserByEmail(email: string) {
   return data;
 }
 
+async function invalidateActiveOtpCodes(email: string, purpose: OtpPurpose, consumedAtIso: string) {
+  const { error } = await supabase
+    .from('otp_codes')
+    .update({ consumed_at: consumedAtIso })
+    .eq('email', email)
+    .eq('purpose', purpose)
+    .is('consumed_at', null)
+    .gt('expires_at', consumedAtIso);
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function deliverOtpWithRetry(email: string, otp: string, purpose: OtpPurpose): Promise<boolean> {
+  const maxAttempts = 2;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const sent = await emailService.sendOTP(email, otp, purpose);
+    if (sent) {
+      return true;
+    }
+
+    if (attempt < maxAttempts) {
+      logger.warn(`[EMAIL][SUPABASE] OTP delivery retry ${attempt} failed for ${email}; retrying...`);
+      await new Promise((resolve) => setTimeout(resolve, 750));
+    }
+  }
+
+  return false;
+}
+
 router.post('/send-otp', async (req: Request, res: Response) => {
   try {
     const emailRaw = req.body?.email?.toString();
@@ -78,6 +109,8 @@ router.post('/send-otp', async (req: Request, res: Response) => {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const now = new Date().toISOString();
 
+    await invalidateActiveOtpCodes(email, purposeRaw, now);
+
     const { error: insertError } = await supabase.from('otp_codes').insert({
       id: otpId,
       email,
@@ -90,8 +123,18 @@ router.post('/send-otp', async (req: Request, res: Response) => {
 
     if (insertError) throw insertError;
 
-    // Send the OTP email in the background using the 100% reliable Gmail HTTP Relay
-    void sendOtpEmailInBackground(email, otp, purposeRaw, otpId);
+    // Send the OTP email and retry once before treating delivery as failed.
+    const emailSent = await deliverOtpWithRetry(email, otp, purposeRaw);
+
+    if (!emailSent) {
+      // Clean up the generated OTP code from the DB if email delivery fails
+      await supabase.from('otp_codes').delete().eq('id', otpId);
+
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to deliver OTP email. Please ensure your backend environment variables (SMTP or GMAIL_RELAY_URL) are configured correctly on Vercel.',
+      });
+    }
 
     return res.json({
       success: true,
